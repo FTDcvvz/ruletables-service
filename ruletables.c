@@ -13,11 +13,14 @@ void
 init_ruletables()
 {
 	//init filter
-	filter_policy_in.property = {"filter","ACCEPT"};
+	filter_policy_in.property.tablename = "filter";
+	filter_policy_in.property.policy ="ACCEPT";
 	filter_policy_in.actionType = "INPUT";
-	filter_policy_out.property = {"filter","ACCEPT"};
+	filter_policy_out.property.tablename = "filter";
+	filter_policy_out.property.policy = "ACCEPT";
 	filter_policy_out.actionType = "OUTPUT";
-	filter_policy_for.property = {"filter","ACCEPT"};
+	filter_policy_for.property.tablename = "filter";
+	filter_policy_for.property.policy ="ACCEPT";
 	filter_policy_for.actionType = "FORWARD";
 	list_add_tail(&filter_policy_in.list, &ruletables);
 	list_add_tail(&filter_policy_out.list, &ruletables);

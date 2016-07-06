@@ -13,9 +13,9 @@ typedef struct basic_header
 
 typedef struct properties
 {
-	char tablename[10];
+	char *tablename;
 	//默认策略，默认值是accept
-	char policy[10];
+	char *policy；
 }properties;
 
 typedef struct ruletable
@@ -25,8 +25,8 @@ typedef struct ruletable
 	basic_header head;
 
 	int property;
-	char actionType[10];
-	char actionDesc[10];
+	char *actionType;
+	char *actionDesc;
 
 	properties property;
 }ruletable;
