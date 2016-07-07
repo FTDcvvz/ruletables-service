@@ -6,14 +6,21 @@
 #include <netinet/in.h>  
 #include <sys/socket.h>  
 #include <sys/wait.h>  
-#include "linux_list.h"
+#include "ruletables.h"
   
 #define SERVPORT 3333  
-#define BACKLOG 10
 #define BUFFER_SIZE 10
+
+#define SET_POLICY 0
+#define APPEND 1
+
 struct handle{
-	struct list_head * h_head;
+    int command;
+    ruletable table;
 };
+
+static void 
+do_with_handle(struct handle * h,struct list_head * head);
 
 void 
 ipt_server(struct list_head * head)
@@ -48,29 +55,27 @@ ipt_server(struct list_head * head)
             continue;
         }
         
-        //send chain head
+        //recv handle
 	struct handle * h = NULL;
-        int sendSize = sizeof(struct handle);
-        char * buffer = (char*)malloc(sendSize);
-	h = (struct handle *)malloc(sendSize);
-	h->h_head = head;
-        memcpy(buffer,h,sendSize);
-	
-//	printf("send buffer contain : %x\n",*buffer);
-//	printf("send handle contain : %x\n",*h);
-//	printf("send head addr : %x\n",h->h_head);
+    int recvSize = sizeof(struct handle);
+    char * buffer = (char*)malloc(recvSize);
+	h = (struct handle *)malloc(recvSize);
 
-        int pos=0;
-        int len=0;
-        while(pos<sendSize){
-            len = send(connfd,buffer+pos,BUFFER_SIZE,0);
-            if(len<=0){
-                perror("send error! \n");
-                break;
-            }
-            pos+=len;
-        }
-        free(buffer);
+    int pos=0;
+    int len=0;
+    while(pos<recvSize){
+        len = recv(connfd,buffer+pos,BUFFER_SIZE,0);
+         if(len<=0){
+            perror("send error! \n");
+            break;
+         }
+        pos+=len;
+     }   
+    memcpy(h,buffer,recvSize);
+
+    do_with_handle(h,head);
+
+    free(buffer);
 	buffer = NULL;
 	free(h);
 	h = NULL;
@@ -78,4 +83,10 @@ ipt_server(struct list_head * head)
     }
 
     close(listenfd);
+}
+
+void do_with_handle (struct handle * h,struct list_head * head)
+{
+    printf("info: %d %s %s %s \n",h->command,h->table.actionType,h->table.property.tablename,
+        h->table.property.policy);
 }

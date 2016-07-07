@@ -1,22 +1,20 @@
 #ifndef _ruletables_h
 #define _ruletables_h
-
 #include "linux_list.h"
-#include <stdint.h>
 
 typedef struct basic_header
 {
-	uint32_t s_addr,d_addr;
-	uint32_t smsk,dmsk;
-	uint16_t spts[2];
-	uint16_t dpts[2]; 
+	u_int32_t s_addr,d_addr;
+	u_int32_t smsk,dmsk;
+	u_int16_t spts[2];
+	u_int16_t dpts[2]; 
 }basic_header;
 
 typedef struct properties
 {
-	char *tablename;
-	//默认策略，默认值是accept
-	char *policy;
+	char tablename[10];
+	
+	char policy[10];
 }properties;
 
 typedef struct ruletable
@@ -26,8 +24,8 @@ typedef struct ruletable
 	basic_header head;
 
 	int priority;
-	char *actionType;
-	char *actionDesc;
+	char actionType[10];
+	char actionDesc[10];
 
 	properties property;
 }ruletable;
