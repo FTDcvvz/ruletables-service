@@ -10,7 +10,7 @@
   
 #define SERVPORT 3333  
 #define BACKLOG 10
-#define BUFFER_SIZE 50
+#define BUFFER_SIZE 10
 struct handle{
 	struct list_head * h_head;
 };
@@ -49,7 +49,7 @@ ipt_server(struct list_head * head)
         }
         
         //send chain head
-	struct handle * h;
+	struct handle * h = NULL;
         int sendSize = sizeof(struct handle);
         char * buffer = (char*)malloc(sendSize);
 	h = (struct handle *)malloc(sendSize);
@@ -71,7 +71,9 @@ ipt_server(struct list_head * head)
             pos+=len;
         }
         free(buffer);
+	buffer = NULL;
 	free(h);
+	h = NULL;
         close(connfd);
     }
 
