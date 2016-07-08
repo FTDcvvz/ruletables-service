@@ -14,8 +14,6 @@ typedef struct basic_header
 typedef struct properties
 {
 	char tablename[10];
-	
-	char policy[10];
 }properties;
 
 typedef struct ruletable
