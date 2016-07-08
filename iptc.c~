@@ -132,7 +132,6 @@ int listenfd0 = *(int *)arg;
             printf("accept socket error: %s(errno: %d)",strerror(errno),errno);
            continue;
         }
-
         
         close(connfd0);
     }
