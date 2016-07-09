@@ -14,8 +14,8 @@
 #define GET_MES(handle_type)  \
             int recvSize = sizeof(struct handle_type); \
             char * buffer = (char*)malloc(recvSize); \
-	    if(!buffer){ \
-	      fprintf(stderr, "malloc error : %s\n",strerror(errno));\
+        if(!buffer){ \
+          fprintf(stderr, "malloc error : %s\n",strerror(errno));\
             } \
             struct handle_type *handle = (struct handle_type *)malloc(recvSize); \
             int pos=0; \
@@ -29,13 +29,14 @@
                 pos+=len; \
             } \
             if(!memcpy(handle,buffer,recvSize)){ \
-	      fprintf(stderr, "memcpy error : %s\n",strerror(errno));\
+          fprintf(stderr, "memcpy error : %s\n",strerror(errno));\
             } \
             free(buffer); \
-            buffer = NULL; 
+            buffer = NULL 
 
-#define SERVPORT_C 6666   //controller
-#define CONNPORT_C 5555 //client to controller 
+#define SERVPORT_C 6666   //server 
+#define CONNPORT_C 3333 //client 
+#define CONTROLLER_ADDR "127.0.0.1" 
 
 #define BUFFER_SIZE 10
 
@@ -45,11 +46,7 @@
 #define UNIX_DOMAIN "/tmp/UNIX.domain"  
 
 /*   note  :  gcc thread.c -o thread.o -lpthread */
-struct handle_i{
-    int command;
-    ruletable table;
-};
-struct handle_c{
+struct handle{
     int command;
     ruletable table;
 };
@@ -57,10 +54,10 @@ struct handle_c{
 extern void ipt_server(struct list_head * head);
 static void do_com_iptables();
 static void do_com_controller();
-static void do_message_from_controller(struct handle_c *handle);
-static void do_message_from_iptables(struct handle_i *handle);
-static void send_to_kernel(struct handle_i * h);
-static void send_to_controller(struct handle_c * h);
+static void do_message_from_controller(struct handle *handle);
+static void do_message_from_iptables(struct handle *handle);
+static void send_to_kernel(struct handle * h);
+static void send_to_controller(struct handle * h);
 
 
 void 
@@ -70,14 +67,14 @@ ipt_server(struct list_head * head)
     if(pthread_create(&thread_id,NULL,(void *)(&do_com_controller),NULL) == -1)
     {
         fprintf(stderr,"pthread_create error!\n");
-    	exit(0);
+        exit(0);
     }
     do_com_iptables();
 }
 
 static void
 do_com_controller(){
-	int    listenfd,connfd;
+    int    listenfd,connfd;
     struct sockaddr_in  servaddr;
 
     if( (listenfd = socket(AF_INET, SOCK_STREAM, 0)) == -1 ){
@@ -103,12 +100,13 @@ do_com_controller(){
             printf("accept socket error: %s(errno: %d)",strerror(errno),errno);
             continue;
         }
-	
-	printf("messages coming from controller.\n");
-        GET_MES(handle_c)
-        do_message_from_controller(handle);
-	
-        close(connfd);
+    
+    printf("messages coming from controller.\n");
+    GET_MES(handle);
+    do_message_from_controller(handle);
+    
+    free(handle);
+    close(connfd);
     }
     close(listenfd);
 }
@@ -140,13 +138,13 @@ do_com_iptables(){
 
     printf("======waiting for iptables's request ======\n");
     while(1){
-	len=sizeof(clt_addr); 
+    len=sizeof(clt_addr); 
         if((connfd = accept(listenfd, (struct sockaddr*)&clt_addr,&len)) == -1){
             printf("accept socket error: %s(errno: %d)",strerror(errno),errno);
             continue;
         }
-        GET_MES(handle_i)
-	do_message_from_iptables(handle);
+        GET_MES(handle);
+    do_message_from_iptables(handle);
 
         free(handle);
         close(connfd);
@@ -155,7 +153,7 @@ do_com_iptables(){
 }
 
 static void
-do_message_from_controller(struct handle_c *h)
+do_message_from_controller(struct handle *h)
 {
      struct in_addr addr1,addr2;
      memcpy(&addr1, &(h->table.head.s_addr), 4);
@@ -168,19 +166,61 @@ do_message_from_controller(struct handle_c *h)
 }
 
 static void
-do_message_from_iptables(struct handle_i *h)
+do_message_from_iptables(struct handle *h)
 {
      printf("info from iptables: %d %s %s %s \n  next step is sending to controller \n",h->command,h->table.actionType,h->table.property.tablename,
         h->table.actionDesc);
+     send_to_controller(h);
+     printf("Sending to controller Succeed.\n");
 
 }
 static 
-void send_to_kernel(struct handle_i * h)
+void send_to_kernel(struct handle * h)
 {
 
 }
 
-static void send_to_controller(struct handle_c * h)
+static void send_to_controller(struct handle * h)
 {
+    int    sockfd, n;
+    struct sockaddr_in    servaddr;
     
+    if( (sockfd = socket(AF_INET, SOCK_STREAM, 0)) < 0){
+        printf("create socket error: %s(errno: %d)\n", strerror(errno),errno);
+        exit(0);
+    }
+    memset(&servaddr, 0, sizeof(servaddr));
+
+    servaddr.sin_family = AF_INET;
+    servaddr.sin_port = htons(CONNPORT_C);
+    if( inet_pton(AF_INET, CONTROLLER_ADDR, &servaddr.sin_addr) <= 0){
+    printf("inet_pton error\n");
+    exit(0);
+    }
+
+    if( connect(sockfd, (struct sockaddr*)&servaddr, sizeof(servaddr)) < 0){
+    printf("connect error: %s(errno: %d)\n",strerror(errno),errno);
+    exit(0);
+    }
+
+    int needSend=sizeof(struct handle); 
+
+    char *buffer=(char*)malloc(needSend);
+  
+    int pos=0;
+    int len;
+    memcpy(buffer,h,needSend);
+    while(pos < needSend){
+            len = send(sockfd, buffer+pos, BUFFER_SIZE, 0);
+            if (len < 0)
+            {
+                printf("Send Data Failed!\n");
+                break;
+            }
+            pos+=len;
+    }
+    close(sockfd);
+    free(buffer);
+    buffer = NULL;
 }
+
