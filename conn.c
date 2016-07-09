@@ -51,17 +51,18 @@ struct handle{
     ruletable table;
 };
 
-extern void ipt_server(struct list_head * head);
+extern void ipt_server();
 static void do_com_iptables();
 static void do_com_controller();
 static void do_message_from_controller(struct handle *handle);
 static void do_message_from_iptables(struct handle *handle);
-static void send_to_kernel(struct handle * h);
+static int send_to_kernel(struct handle * h);
 static void send_to_controller(struct handle * h);
+static char * to_iptables_string(struct handle * h);
 
 
 void 
-ipt_server(struct list_head * head)
+ipt_server()
 {
     pthread_t thread_id;
     if(pthread_create(&thread_id,NULL,(void *)(&do_com_controller),NULL) == -1)
@@ -160,9 +161,9 @@ do_message_from_controller(struct handle *h)
      memcpy(&addr2, &(h->table.head.d_addr), 4);
      printf("info from controller: %d %s %s %s %s ",h->command,h->table.actionType,h->table.property.tablename,
         h->table.actionDesc,inet_ntoa(addr1));
-     printf("%s\n  next step is sending to kernel \n",inet_ntoa(addr2));
-
-     
+     printf("%s\n  next step is sending to kernel and store it \n",inet_ntoa(addr2));
+     if(send_to_kernel(h))//如果写入内核成功
+        do_store(h);
 }
 
 static void
@@ -174,10 +175,22 @@ do_message_from_iptables(struct handle *h)
      printf("Sending to controller Succeed.\n");
 
 }
-static 
-void send_to_kernel(struct handle * h)
-{
 
+static char * 
+to_iptables_string(struct handle * h)
+{
+    char * ret_string;
+    ret_string = "test";
+    return ret_string;
+}
+
+static 
+int send_to_kernel(struct handle * h)
+{
+    char * i_string ;
+    i_string = to_iptables_string(h);
+    printf("%s \n",i_string);
+    return 1;
 }
 
 static void send_to_controller(struct handle * h)
@@ -223,4 +236,5 @@ static void send_to_controller(struct handle * h)
     free(buffer);
     buffer = NULL;
 }
+
 
