@@ -11,6 +11,8 @@
 #include <arpa/inet.h>
 #include "ruletables.h"
 
+#include <iptables.h>
+
 #define GET_MES(handle_type)  \
             int recvSize = sizeof(struct handle_type); \
             char * buffer = (char*)malloc(recvSize); \
@@ -156,14 +158,18 @@ do_com_iptables(){
 static void
 do_message_from_controller(struct handle *h)
 {
-     struct in_addr addr1,addr2;
-     memcpy(&addr1, &(h->table.head.s_addr), 4);
-     memcpy(&addr2, &(h->table.head.d_addr), 4);
-     printf("info from controller: %d %s %s %s %s ",h->command,h->table.actionType,h->table.property.tablename,
-        h->table.actionDesc,inet_ntoa(addr1));
-     printf("%s\n  next step is sending to kernel and store it \n",inet_ntoa(addr2));
-     if(send_to_kernel(h))//如果写入内核成功
-        do_store(h);
+    struct in_addr addr1,addr2;
+    memcpy(&addr1, &(h->table.head.s_addr), 4);
+    memcpy(&addr2, &(h->table.head.d_addr), 4);
+    printf("info from controller: %d %s %s %s %s ",h->command,h->table.actionType,h->table.property.tablename,
+       h->table.actionDesc,inet_ntoa(addr1));
+    printf("%s\n  next step is sending to kernel and store it \n",inet_ntoa(addr2));
+    if(!send_to_kernel(h))//如果没有成功写入内核
+    {
+        fprintf(stderr, "Failed to write the rule to kernel\n");
+    }
+    else
+       do_store(h);
 }
 
 static void
@@ -171,6 +177,7 @@ do_message_from_iptables(struct handle *h)
 {
      printf("info from iptables: %d %s %s %s \n  next step is sending to controller \n",h->command,h->table.actionType,h->table.property.tablename,
         h->table.actionDesc);
+     do_store(h);
      send_to_controller(h);
      printf("Sending to controller Succeed.\n");
 
@@ -190,7 +197,85 @@ int send_to_kernel(struct handle * h)
     char * i_string ;
     i_string = to_iptables_string(h);
     printf("%s \n",i_string);
-    return 1;
+
+    //here are the code from iptables-standalone.c
+    //如果想要实现IPv6,将ip6tables-standalone.c中相应代码段copy至此,然后再用if else区分开4和6即可
+
+    // if IPv4
+    int ret;
+    char *table = "filter";
+    struct xtc_handle *handle = NULL;
+
+    iptables_globals.program_name = "ruletables";
+    ret = xtables_init_all(&iptables_globals, NFPROTO_IPV4);
+    if (ret < 0) {
+        fprintf(stderr, "%s/%s Failed to initialize xtables\n",
+                iptables_globals.program_name,
+                iptables_globals.program_version);
+                exit(1);
+    }
+
+#if defined(ALL_INCLUSIVE) || defined(NO_SHARED_LIBS)
+    init_extensions();
+    init_extensions4();
+#endif
+
+    ret = do_command4(argc, argv, &table, &handle, false);
+    if (ret) {
+        ret = iptc_commit(handle);
+        iptc_free(handle);
+    }
+
+    if (!ret) {
+        if (errno == EINVAL) {
+            fprintf(stderr, "iptables: %s. "
+                    "Run `dmesg' for more information.\n",
+                iptc_strerror(errno));
+        } else {
+            fprintf(stderr, "iptables: %s.\n",
+                iptc_strerror(errno));
+        }
+        if (errno == EAGAIN) {
+            exit(RESOURCE_PROBLEM);
+        }
+    }
+    /**  if IPv6
+    int ret;
+    char *table = "filter";
+    struct xtc_handle *handle = NULL;
+
+    ip6tables_globals.program_name = "ip6tables";
+    ret = xtables_init_all(&ip6tables_globals, NFPROTO_IPV6);
+    if (ret < 0) {
+        fprintf(stderr, "%s/%s Failed to initialize xtables\n",
+                ip6tables_globals.program_name,
+                ip6tables_globals.program_version);
+        exit(1);
+    }
+
+#if defined(ALL_INCLUSIVE) || defined(NO_SHARED_LIBS)
+    init_extensions();
+    init_extensions6();
+#endif
+
+    ret = do_command6(argc, argv, &table, &handle, false);
+    if (ret) {
+        ret = ip6tc_commit(handle);
+        ip6tc_free(handle);
+    }
+
+    if (!ret) {
+        if (errno == EINVAL) {
+            fprintf(stderr, "ip6tables: %s. "
+                    "Run `dmesg' for more information.\n",
+                ip6tc_strerror(errno));
+        } else {
+            fprintf(stderr, "ip6tables: %s.\n",
+                ip6tc_strerror(errno));
+        }
+    }
+    **/
+    return ret;
 }
 
 static void send_to_controller(struct handle * h)
