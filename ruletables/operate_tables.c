@@ -1,7 +1,8 @@
 #include <stdio.h>
 #include <string.h>
 #include "ruletables.h"
-
+#define SET_POLICY 0
+#define APPEND 1
 struct handle{
     int command;
     ruletable table;
@@ -14,8 +15,8 @@ static ruletable filter_policy_in;
 static ruletable filter_policy_out;
 static ruletable filter_policy_for;
 
-static ruletable nat_policy;
-static ruletable mangle_policy;
+//static ruletable nat_policy;
+//static ruletable mangle_policy;
 
 extern void 
 init_ruletables(struct list_head * ruletables)
@@ -36,9 +37,16 @@ init_ruletables(struct list_head * ruletables)
 	//init nat
 	//init mangle
 }
-
-//struct handle 是conn.c中的静态局部变量，这里函数是否能直接用？ 
+ 
 extern void do_store(struct handle * h)
 {
-	printf("do store \n");
+	printf("start to do store \n");
+  	switch(h->command){
+     	case SET_POLICY:
+		break;
+	case APPEND:
+		break;
+	default:
+		break;
+     }
 }

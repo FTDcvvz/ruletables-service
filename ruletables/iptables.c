@@ -1734,13 +1734,14 @@ int do_command4(int argc, char *argv[], char **table,
 			   "chain name `%s' too long (must be under %u chars)",
 			   chain, XT_EXTENSION_MAXNAMELEN);
 
-	/* Attempt to acquire the xtables lock */
+	/* Attempt to acquire the xtables lock
 	if (!restore && !xtables_lock(wait)) {
 		fprintf(stderr, "Another app is currently holding the xtables lock. "
 			"Perhaps you want to use the -w option?\n");
 		xtables_free_opts(1);
 		exit(RESOURCE_PROBLEM);
 	}
+ 	*/
 
 	/* only allocate handle if we weren't called with a handle */
 	if (!*handle)

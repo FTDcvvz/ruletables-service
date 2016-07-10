@@ -42,7 +42,6 @@
 #include <fcntl.h>
 #include <sys/types.h>
 #include <sys/socket.h>
-#include "ip6tables-multi.h"
 #include "xshared.h"
 
 #ifndef TRUE

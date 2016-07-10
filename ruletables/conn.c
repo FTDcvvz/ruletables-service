@@ -10,8 +10,8 @@
 #include <pthread.h>
 #include <arpa/inet.h>
 #include "ruletables.h"
-
 #include <iptables.h>
+
 
 #define GET_MES(handle_type)  \
             int recvSize = sizeof(struct handle_type); \
@@ -41,6 +41,7 @@
 #define CONTROLLER_ADDR "127.0.0.1" 
 
 #define BUFFER_SIZE 10
+#define MAX_ARG_LENGTH 50
 
 #define SET_POLICY 0
 #define APPEND 1
@@ -60,7 +61,7 @@ static void do_message_from_controller(struct handle *handle);
 static void do_message_from_iptables(struct handle *handle);
 static int send_to_kernel(struct handle * h);
 static void send_to_controller(struct handle * h);
-static char * to_iptables_string(struct handle * h);
+static int to_argv(struct handle * h,char * argv[]);
 
 
 void 
@@ -183,30 +184,122 @@ do_message_from_iptables(struct handle *h)
 
 }
 
-static char * 
-to_iptables_string(struct handle * h)
+static int 
+to_argv(struct handle * h,char * argv[])
 {
-    char * ret_string;
-    ret_string = "test";
-    return ret_string;
+     int argc = 0;
+
+     //why must strdup??!
+     //char *str  is const string,If I declar buf as :char buf[] = 
+    //"iptables -P FORWARD DROP".Then it does work
+    //that is to say, if : char * a = "abcd";
+    // I cant do this    : a[0] = '1';
+    //must use strdup:返回一个指针,指向为复制字符串分配的空间;如果分配空间失败,则返回NULL值
+    // int i;
+    // char *bp = strdup(str);
+    // printf("%s %d\n",bp,strlen(str));
+    //    while((argv[i++] = strsep(&bp, " "))){  
+    //            printf("%s\n", argv[i-1]);   
+    //    }
+    // i--;         
+    // free(bp);
+    // bp = NULL;
+    // if(i>=MAX_ARG_LENGTH )
+    // {
+    //	fprintf(stderr,"too many args.\n");  
+    //	exit(1);
+    // }
+    argv[argc++] = "iptables";
+    argv[argc++] = "-t";
+    argv[argc++] = h->table.property.tablename;
+
+    switch(h->command){
+     	case SET_POLICY:
+		argv[argc++] = "-P";
+		break;
+	case APPEND:
+		argv[argc++] = "-A";
+		break;
+	default:
+		break;
+     }
+    argv[argc++] = h->table.actionType;
+
+    switch(h->command){
+     	case SET_POLICY:
+		argv[argc++] = h->table.actionDesc;
+		return argc;  //如果是set policy,到这里就结束了,return
+	case APPEND:
+		argv[argc++] = "-j";
+		argv[argc++] = h->table.actionDesc;
+		break;
+	default:
+		break;
+     }
+    
+//ip地址，暂时没有考虑掩码
+    struct in_addr addr1,addr2;
+//static char
+    static char tmp0[15],tmp1[15];
+    memcpy(&addr1, &(h->table.head.s_addr), 4);
+    memcpy(&addr2, &(h->table.head.d_addr), 4);
+if(addr1.s_addr != 0){
+    argv[argc++] = "-s";
+    strcpy(tmp0 , inet_ntoa(addr1));
+    argv[argc++] = tmp0;
+}
+if(addr2.s_addr != 0){
+    argv[argc++] = "-d";
+    strcpy(tmp1 , inet_ntoa(addr2));
+    argv[argc++] = tmp1;
 }
 
-static 
-int send_to_kernel(struct handle * h)
-{
-    char * i_string ;
-    i_string = to_iptables_string(h);
-    printf("%s \n",i_string);
+//   TCP OR UDP???
+     unsigned int port0,port1;
+     static char sp[10],dp[10];
+    if((port0 = h->table.head.spts[0])!=0 || (port1 = h->table.head.spts[1])!=0)
+    {
+	argv[argc++] = "--sport";
+	if(port0!=0 && port1!=0)
+	    sprintf(sp, "%u:%u", port0,port1);
+	else if(port0!=0)
+            sprintf(sp, "%u", port0);
+	else 
+            sprintf(sp, "%u", port1);
+        argv[argc++] = sp;
+    }
 
+    if((port0 = h->table.head.dpts[0])!=0 || (port1 = h->table.head.dpts[1])!=0)
+    {
+	argv[argc++] = "--dport";
+	if(port0!=0 && port1!=0)
+	    sprintf(dp, "%u:%u", port0,port1);
+	else if(port0!=0)
+            sprintf(dp, "%u", port0);
+	else 
+            sprintf(dp, "%u", port1);
+        argv[argc++] = dp;
+    }
+int i;
+for(i = 0;i<argc;i++)
+	printf("%s \n",argv[i]);
+   return argc;
+}
+
+static int 
+send_to_kernel(struct handle * h)
+{
+    int argc;
+    char * argv[MAX_ARG_LENGTH];
+    argc = to_argv(h,argv);
     //here are the code from iptables-standalone.c
     //如果想要实现IPv6,将ip6tables-standalone.c中相应代码段copy至此,然后再用if else区分开4和6即可
-
+     
     // if IPv4
     int ret;
     char *table = "filter";
     struct xtc_handle *handle = NULL;
-
-    iptables_globals.program_name = "ruletables";
+    iptables_globals.program_name = "iptables";
     ret = xtables_init_all(&iptables_globals, NFPROTO_IPV4);
     if (ret < 0) {
         fprintf(stderr, "%s/%s Failed to initialize xtables\n",
@@ -280,7 +373,7 @@ int send_to_kernel(struct handle * h)
 
 static void send_to_controller(struct handle * h)
 {
-    int    sockfd, n;
+    int    sockfd;
     struct sockaddr_in    servaddr;
     
     if( (sockfd = socket(AF_INET, SOCK_STREAM, 0)) < 0){

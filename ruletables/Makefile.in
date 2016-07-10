@@ -80,13 +80,17 @@ PRE_UNINSTALL = :
 POST_UNINSTALL = :
 build_triplet = @build@
 host_triplet = @host@
-sbin_PROGRAMS = $(am__EXEEXT_1) $(am__EXEEXT_2)
-@HAVE_LIBNFNETLINK_TRUE@am__append_1 = nfnl_osf
-@HAVE_LIBNFNETLINK_TRUE@am__append_2 = pf.os
-@ENABLE_BPFC_TRUE@am__append_3 = nfbpf_compile
-subdir = utils
+@ENABLE_STATIC_TRUE@am__append_1 = -DALL_INCLUSIVE
+@ENABLE_IPV4_TRUE@am__append_2 = iptables.c
+@ENABLE_IPV4_TRUE@am__append_3 = -DENABLE_IPV4
+@ENABLE_IPV4_TRUE@am__append_4 = ../libiptc/libip4tc.la ../extensions/libext4.a
+@ENABLE_IPV6_TRUE@am__append_5 = ip6tables.c
+@ENABLE_IPV6_TRUE@am__append_6 = -DENABLE_IPV6
+@ENABLE_IPV6_TRUE@am__append_7 = ../libiptc/libip6tc.la ../extensions/libext6.a
+sbin_PROGRAMS = ruletables$(EXEEXT)
+subdir = ruletables
 DIST_COMMON = $(srcdir)/Makefile.in $(srcdir)/Makefile.am \
-	$(top_srcdir)/build-aux/depcomp
+	$(srcdir)/xtables.pc.in $(top_srcdir)/build-aux/depcomp
 ACLOCAL_M4 = $(top_srcdir)/aclocal.m4
 am__aclocal_m4_deps = $(top_srcdir)/m4/ax_check_linker_flags.m4 \
 	$(top_srcdir)/m4/libtool.m4 $(top_srcdir)/m4/ltoptions.m4 \
@@ -96,23 +100,27 @@ am__configure_deps = $(am__aclocal_m4_deps) $(CONFIGURE_DEPENDENCIES) \
 	$(ACLOCAL_M4)
 mkinstalldirs = $(install_sh) -d
 CONFIG_HEADER = $(top_builddir)/config.h
-CONFIG_CLEAN_FILES =
+CONFIG_CLEAN_FILES = xtables.pc
 CONFIG_CLEAN_VPATH_FILES =
-@HAVE_LIBNFNETLINK_TRUE@am__EXEEXT_1 = nfnl_osf$(EXEEXT)
-@ENABLE_BPFC_TRUE@am__EXEEXT_2 = nfbpf_compile$(EXEEXT)
-am__installdirs = "$(DESTDIR)$(sbindir)" "$(DESTDIR)$(pkgdatadir)"
+am__installdirs = "$(DESTDIR)$(sbindir)" "$(DESTDIR)$(pkgconfigdir)"
 PROGRAMS = $(sbin_PROGRAMS)
-nfbpf_compile_SOURCES = nfbpf_compile.c
-nfbpf_compile_OBJECTS = nfbpf_compile.$(OBJEXT)
-nfbpf_compile_DEPENDENCIES =
+am__ruletables_SOURCES_DIST = ruletables.c conn.c operate_tables.c \
+	iptables.c ip6tables.c xshared.c
+@ENABLE_IPV4_TRUE@am__objects_1 = ruletables-iptables.$(OBJEXT)
+@ENABLE_IPV6_TRUE@am__objects_2 = ruletables-ip6tables.$(OBJEXT)
+am_ruletables_OBJECTS = ruletables-ruletables.$(OBJEXT) \
+	ruletables-conn.$(OBJEXT) ruletables-operate_tables.$(OBJEXT) \
+	$(am__objects_1) $(am__objects_2) ruletables-xshared.$(OBJEXT)
+ruletables_OBJECTS = $(am_ruletables_OBJECTS)
+ruletables_DEPENDENCIES = ../extensions/libext.a $(am__append_4) \
+	$(am__append_7) ../libxtables/libxtables.la
 AM_V_lt = $(am__v_lt_@AM_V@)
 am__v_lt_ = $(am__v_lt_@AM_DEFAULT_V@)
 am__v_lt_0 = --silent
 am__v_lt_1 = 
-nfnl_osf_SOURCES = nfnl_osf.c
-nfnl_osf_OBJECTS = nfnl_osf.$(OBJEXT)
-am__DEPENDENCIES_1 =
-@HAVE_LIBNFNETLINK_TRUE@nfnl_osf_DEPENDENCIES = $(am__DEPENDENCIES_1)
+ruletables_LINK = $(LIBTOOL) $(AM_V_lt) --tag=CC $(AM_LIBTOOLFLAGS) \
+	$(LIBTOOLFLAGS) --mode=link $(CCLD) $(ruletables_CFLAGS) \
+	$(CFLAGS) $(AM_LDFLAGS) $(LDFLAGS) -o $@
 AM_V_P = $(am__v_P_@AM_V@)
 am__v_P_ = $(am__v_P_@AM_DEFAULT_V@)
 am__v_P_0 = false
@@ -147,8 +155,8 @@ AM_V_CCLD = $(am__v_CCLD_@AM_V@)
 am__v_CCLD_ = $(am__v_CCLD_@AM_DEFAULT_V@)
 am__v_CCLD_0 = @echo "  CCLD    " $@;
 am__v_CCLD_1 = 
-SOURCES = nfbpf_compile.c nfnl_osf.c
-DIST_SOURCES = nfbpf_compile.c nfnl_osf.c
+SOURCES = $(ruletables_SOURCES)
+DIST_SOURCES = $(am__ruletables_SOURCES_DIST)
 am__can_run_installinfo = \
   case $$AM_UPDATE_INFO_DIR in \
     n|no|NO) false;; \
@@ -181,7 +189,7 @@ am__uninstall_files_from_dir = { \
     || { echo " ( cd '$$dir' && rm -f" $$files ")"; \
          $(am__cd) "$$dir" && rm -f $$files; }; \
   }
-DATA = $(pkgdata_DATA)
+DATA = $(pkgconfig_DATA)
 am__tagged_files = $(HEADERS) $(SOURCES) $(TAGS_FILES) $(LISP)
 # Read a list of newline-separated strings from the standard input,
 # and print each of them once, without duplicates.  Input order is
@@ -237,7 +245,7 @@ INSTALL_STRIP_PROGRAM = @INSTALL_STRIP_PROGRAM@
 LD = @LD@
 LDFLAGS = @LDFLAGS@
 LIBOBJS = @LIBOBJS@
-LIBS = @LIBS@
+LIBS = -lpthread
 LIBTOOL = @LIBTOOL@
 LIPO = @LIPO@
 LN_S = @LN_S@
@@ -338,12 +346,14 @@ top_builddir = @top_builddir@
 top_srcdir = @top_srcdir@
 xtlibdir = @xtlibdir@
 AM_CFLAGS = ${regular_CFLAGS}
-AM_CPPFLAGS = ${regular_CPPFLAGS} -I${top_builddir}/include \
-              -I${top_srcdir}/include ${libnfnetlink_CFLAGS}
-
-pkgdata_DATA = $(am__append_2)
-@HAVE_LIBNFNETLINK_TRUE@nfnl_osf_LDADD = ${libnfnetlink_LIBS}
-@ENABLE_BPFC_TRUE@nfbpf_compile_LDADD = -lpcap
+AM_CPPFLAGS = ${regular_CPPFLAGS} -I${top_builddir}/include -I${top_srcdir}/include ${kinclude_CPPFLAGS}
+ruletables_SOURCES = ruletables.c conn.c operate_tables.c \
+	$(am__append_2) $(am__append_5) xshared.c
+ruletables_CFLAGS = ${AM_CFLAGS} $(am__append_1) $(am__append_3) \
+	$(am__append_6)
+ruletables_LDADD = ../extensions/libext.a $(am__append_4) \
+	$(am__append_7) ../libxtables/libxtables.la -lm
+pkgconfig_DATA = xtables.pc
 all: all-am
 
 .SUFFIXES:
@@ -357,9 +367,9 @@ $(srcdir)/Makefile.in:  $(srcdir)/Makefile.am  $(am__configure_deps)
 	      exit 1;; \
 	  esac; \
 	done; \
-	echo ' cd $(top_srcdir) && $(AUTOMAKE) --foreign utils/Makefile'; \
+	echo ' cd $(top_srcdir) && $(AUTOMAKE) --foreign ruletables/Makefile'; \
 	$(am__cd) $(top_srcdir) && \
-	  $(AUTOMAKE) --foreign utils/Makefile
+	  $(AUTOMAKE) --foreign ruletables/Makefile
 .PRECIOUS: Makefile
 Makefile: $(srcdir)/Makefile.in $(top_builddir)/config.status
 	@case '$?' in \
@@ -378,6 +388,8 @@ $(top_srcdir)/configure:  $(am__configure_deps)
 $(ACLOCAL_M4):  $(am__aclocal_m4_deps)
 	cd $(top_builddir) && $(MAKE) $(AM_MAKEFLAGS) am--refresh
 $(am__aclocal_m4_deps):
+xtables.pc: $(top_builddir)/config.status $(srcdir)/xtables.pc.in
+	cd $(top_builddir) && $(SHELL) ./config.status $(subdir)/$@
 install-sbinPROGRAMS: $(sbin_PROGRAMS)
 	@$(NORMAL_INSTALL)
 	@list='$(sbin_PROGRAMS)'; test -n "$(sbindir)" || list=; \
@@ -428,13 +440,9 @@ clean-sbinPROGRAMS:
 	echo " rm -f" $$list; \
 	rm -f $$list
 
-nfbpf_compile$(EXEEXT): $(nfbpf_compile_OBJECTS) $(nfbpf_compile_DEPENDENCIES) $(EXTRA_nfbpf_compile_DEPENDENCIES) 
-	@rm -f nfbpf_compile$(EXEEXT)
-	$(AM_V_CCLD)$(LINK) $(nfbpf_compile_OBJECTS) $(nfbpf_compile_LDADD) $(LIBS)
-
-nfnl_osf$(EXEEXT): $(nfnl_osf_OBJECTS) $(nfnl_osf_DEPENDENCIES) $(EXTRA_nfnl_osf_DEPENDENCIES) 
-	@rm -f nfnl_osf$(EXEEXT)
-	$(AM_V_CCLD)$(LINK) $(nfnl_osf_OBJECTS) $(nfnl_osf_LDADD) $(LIBS)
+ruletables$(EXEEXT): $(ruletables_OBJECTS) $(ruletables_DEPENDENCIES) $(EXTRA_ruletables_DEPENDENCIES) 
+	@rm -f ruletables$(EXEEXT)
+	$(AM_V_CCLD)$(ruletables_LINK) $(ruletables_OBJECTS) $(ruletables_LDADD) $(LIBS)
 
 mostlyclean-compile:
 	-rm -f *.$(OBJEXT)
@@ -442,8 +450,12 @@ mostlyclean-compile:
 distclean-compile:
 	-rm -f *.tab.c
 
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/nfbpf_compile.Po@am__quote@
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/nfnl_osf.Po@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/ruletables-conn.Po@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/ruletables-ip6tables.Po@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/ruletables-iptables.Po@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/ruletables-operate_tables.Po@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/ruletables-ruletables.Po@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/ruletables-xshared.Po@am__quote@
 
 .c.o:
 @am__fastdepCC_TRUE@	$(AM_V_CC)$(COMPILE) -MT $@ -MD -MP -MF $(DEPDIR)/$*.Tpo -c -o $@ $<
@@ -466,32 +478,116 @@ distclean-compile:
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
 @am__fastdepCC_FALSE@	$(AM_V_CC@am__nodep@)$(LTCOMPILE) -c -o $@ $<
 
+ruletables-ruletables.o: ruletables.c
+@am__fastdepCC_TRUE@	$(AM_V_CC)$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(ruletables_CFLAGS) $(CFLAGS) -MT ruletables-ruletables.o -MD -MP -MF $(DEPDIR)/ruletables-ruletables.Tpo -c -o ruletables-ruletables.o `test -f 'ruletables.c' || echo '$(srcdir)/'`ruletables.c
+@am__fastdepCC_TRUE@	$(AM_V_at)$(am__mv) $(DEPDIR)/ruletables-ruletables.Tpo $(DEPDIR)/ruletables-ruletables.Po
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	$(AM_V_CC)source='ruletables.c' object='ruletables-ruletables.o' libtool=no @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(AM_V_CC@am__nodep@)$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(ruletables_CFLAGS) $(CFLAGS) -c -o ruletables-ruletables.o `test -f 'ruletables.c' || echo '$(srcdir)/'`ruletables.c
+
+ruletables-ruletables.obj: ruletables.c
+@am__fastdepCC_TRUE@	$(AM_V_CC)$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(ruletables_CFLAGS) $(CFLAGS) -MT ruletables-ruletables.obj -MD -MP -MF $(DEPDIR)/ruletables-ruletables.Tpo -c -o ruletables-ruletables.obj `if test -f 'ruletables.c'; then $(CYGPATH_W) 'ruletables.c'; else $(CYGPATH_W) '$(srcdir)/ruletables.c'; fi`
+@am__fastdepCC_TRUE@	$(AM_V_at)$(am__mv) $(DEPDIR)/ruletables-ruletables.Tpo $(DEPDIR)/ruletables-ruletables.Po
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	$(AM_V_CC)source='ruletables.c' object='ruletables-ruletables.obj' libtool=no @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(AM_V_CC@am__nodep@)$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(ruletables_CFLAGS) $(CFLAGS) -c -o ruletables-ruletables.obj `if test -f 'ruletables.c'; then $(CYGPATH_W) 'ruletables.c'; else $(CYGPATH_W) '$(srcdir)/ruletables.c'; fi`
+
+ruletables-conn.o: conn.c
+@am__fastdepCC_TRUE@	$(AM_V_CC)$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(ruletables_CFLAGS) $(CFLAGS) -MT ruletables-conn.o -MD -MP -MF $(DEPDIR)/ruletables-conn.Tpo -c -o ruletables-conn.o `test -f 'conn.c' || echo '$(srcdir)/'`conn.c
+@am__fastdepCC_TRUE@	$(AM_V_at)$(am__mv) $(DEPDIR)/ruletables-conn.Tpo $(DEPDIR)/ruletables-conn.Po
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	$(AM_V_CC)source='conn.c' object='ruletables-conn.o' libtool=no @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(AM_V_CC@am__nodep@)$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(ruletables_CFLAGS) $(CFLAGS) -c -o ruletables-conn.o `test -f 'conn.c' || echo '$(srcdir)/'`conn.c
+
+ruletables-conn.obj: conn.c
+@am__fastdepCC_TRUE@	$(AM_V_CC)$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(ruletables_CFLAGS) $(CFLAGS) -MT ruletables-conn.obj -MD -MP -MF $(DEPDIR)/ruletables-conn.Tpo -c -o ruletables-conn.obj `if test -f 'conn.c'; then $(CYGPATH_W) 'conn.c'; else $(CYGPATH_W) '$(srcdir)/conn.c'; fi`
+@am__fastdepCC_TRUE@	$(AM_V_at)$(am__mv) $(DEPDIR)/ruletables-conn.Tpo $(DEPDIR)/ruletables-conn.Po
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	$(AM_V_CC)source='conn.c' object='ruletables-conn.obj' libtool=no @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(AM_V_CC@am__nodep@)$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(ruletables_CFLAGS) $(CFLAGS) -c -o ruletables-conn.obj `if test -f 'conn.c'; then $(CYGPATH_W) 'conn.c'; else $(CYGPATH_W) '$(srcdir)/conn.c'; fi`
+
+ruletables-operate_tables.o: operate_tables.c
+@am__fastdepCC_TRUE@	$(AM_V_CC)$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(ruletables_CFLAGS) $(CFLAGS) -MT ruletables-operate_tables.o -MD -MP -MF $(DEPDIR)/ruletables-operate_tables.Tpo -c -o ruletables-operate_tables.o `test -f 'operate_tables.c' || echo '$(srcdir)/'`operate_tables.c
+@am__fastdepCC_TRUE@	$(AM_V_at)$(am__mv) $(DEPDIR)/ruletables-operate_tables.Tpo $(DEPDIR)/ruletables-operate_tables.Po
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	$(AM_V_CC)source='operate_tables.c' object='ruletables-operate_tables.o' libtool=no @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(AM_V_CC@am__nodep@)$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(ruletables_CFLAGS) $(CFLAGS) -c -o ruletables-operate_tables.o `test -f 'operate_tables.c' || echo '$(srcdir)/'`operate_tables.c
+
+ruletables-operate_tables.obj: operate_tables.c
+@am__fastdepCC_TRUE@	$(AM_V_CC)$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(ruletables_CFLAGS) $(CFLAGS) -MT ruletables-operate_tables.obj -MD -MP -MF $(DEPDIR)/ruletables-operate_tables.Tpo -c -o ruletables-operate_tables.obj `if test -f 'operate_tables.c'; then $(CYGPATH_W) 'operate_tables.c'; else $(CYGPATH_W) '$(srcdir)/operate_tables.c'; fi`
+@am__fastdepCC_TRUE@	$(AM_V_at)$(am__mv) $(DEPDIR)/ruletables-operate_tables.Tpo $(DEPDIR)/ruletables-operate_tables.Po
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	$(AM_V_CC)source='operate_tables.c' object='ruletables-operate_tables.obj' libtool=no @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(AM_V_CC@am__nodep@)$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(ruletables_CFLAGS) $(CFLAGS) -c -o ruletables-operate_tables.obj `if test -f 'operate_tables.c'; then $(CYGPATH_W) 'operate_tables.c'; else $(CYGPATH_W) '$(srcdir)/operate_tables.c'; fi`
+
+ruletables-iptables.o: iptables.c
+@am__fastdepCC_TRUE@	$(AM_V_CC)$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(ruletables_CFLAGS) $(CFLAGS) -MT ruletables-iptables.o -MD -MP -MF $(DEPDIR)/ruletables-iptables.Tpo -c -o ruletables-iptables.o `test -f 'iptables.c' || echo '$(srcdir)/'`iptables.c
+@am__fastdepCC_TRUE@	$(AM_V_at)$(am__mv) $(DEPDIR)/ruletables-iptables.Tpo $(DEPDIR)/ruletables-iptables.Po
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	$(AM_V_CC)source='iptables.c' object='ruletables-iptables.o' libtool=no @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(AM_V_CC@am__nodep@)$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(ruletables_CFLAGS) $(CFLAGS) -c -o ruletables-iptables.o `test -f 'iptables.c' || echo '$(srcdir)/'`iptables.c
+
+ruletables-iptables.obj: iptables.c
+@am__fastdepCC_TRUE@	$(AM_V_CC)$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(ruletables_CFLAGS) $(CFLAGS) -MT ruletables-iptables.obj -MD -MP -MF $(DEPDIR)/ruletables-iptables.Tpo -c -o ruletables-iptables.obj `if test -f 'iptables.c'; then $(CYGPATH_W) 'iptables.c'; else $(CYGPATH_W) '$(srcdir)/iptables.c'; fi`
+@am__fastdepCC_TRUE@	$(AM_V_at)$(am__mv) $(DEPDIR)/ruletables-iptables.Tpo $(DEPDIR)/ruletables-iptables.Po
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	$(AM_V_CC)source='iptables.c' object='ruletables-iptables.obj' libtool=no @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(AM_V_CC@am__nodep@)$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(ruletables_CFLAGS) $(CFLAGS) -c -o ruletables-iptables.obj `if test -f 'iptables.c'; then $(CYGPATH_W) 'iptables.c'; else $(CYGPATH_W) '$(srcdir)/iptables.c'; fi`
+
+ruletables-ip6tables.o: ip6tables.c
+@am__fastdepCC_TRUE@	$(AM_V_CC)$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(ruletables_CFLAGS) $(CFLAGS) -MT ruletables-ip6tables.o -MD -MP -MF $(DEPDIR)/ruletables-ip6tables.Tpo -c -o ruletables-ip6tables.o `test -f 'ip6tables.c' || echo '$(srcdir)/'`ip6tables.c
+@am__fastdepCC_TRUE@	$(AM_V_at)$(am__mv) $(DEPDIR)/ruletables-ip6tables.Tpo $(DEPDIR)/ruletables-ip6tables.Po
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	$(AM_V_CC)source='ip6tables.c' object='ruletables-ip6tables.o' libtool=no @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(AM_V_CC@am__nodep@)$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(ruletables_CFLAGS) $(CFLAGS) -c -o ruletables-ip6tables.o `test -f 'ip6tables.c' || echo '$(srcdir)/'`ip6tables.c
+
+ruletables-ip6tables.obj: ip6tables.c
+@am__fastdepCC_TRUE@	$(AM_V_CC)$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(ruletables_CFLAGS) $(CFLAGS) -MT ruletables-ip6tables.obj -MD -MP -MF $(DEPDIR)/ruletables-ip6tables.Tpo -c -o ruletables-ip6tables.obj `if test -f 'ip6tables.c'; then $(CYGPATH_W) 'ip6tables.c'; else $(CYGPATH_W) '$(srcdir)/ip6tables.c'; fi`
+@am__fastdepCC_TRUE@	$(AM_V_at)$(am__mv) $(DEPDIR)/ruletables-ip6tables.Tpo $(DEPDIR)/ruletables-ip6tables.Po
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	$(AM_V_CC)source='ip6tables.c' object='ruletables-ip6tables.obj' libtool=no @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(AM_V_CC@am__nodep@)$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(ruletables_CFLAGS) $(CFLAGS) -c -o ruletables-ip6tables.obj `if test -f 'ip6tables.c'; then $(CYGPATH_W) 'ip6tables.c'; else $(CYGPATH_W) '$(srcdir)/ip6tables.c'; fi`
+
+ruletables-xshared.o: xshared.c
+@am__fastdepCC_TRUE@	$(AM_V_CC)$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(ruletables_CFLAGS) $(CFLAGS) -MT ruletables-xshared.o -MD -MP -MF $(DEPDIR)/ruletables-xshared.Tpo -c -o ruletables-xshared.o `test -f 'xshared.c' || echo '$(srcdir)/'`xshared.c
+@am__fastdepCC_TRUE@	$(AM_V_at)$(am__mv) $(DEPDIR)/ruletables-xshared.Tpo $(DEPDIR)/ruletables-xshared.Po
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	$(AM_V_CC)source='xshared.c' object='ruletables-xshared.o' libtool=no @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(AM_V_CC@am__nodep@)$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(ruletables_CFLAGS) $(CFLAGS) -c -o ruletables-xshared.o `test -f 'xshared.c' || echo '$(srcdir)/'`xshared.c
+
+ruletables-xshared.obj: xshared.c
+@am__fastdepCC_TRUE@	$(AM_V_CC)$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(ruletables_CFLAGS) $(CFLAGS) -MT ruletables-xshared.obj -MD -MP -MF $(DEPDIR)/ruletables-xshared.Tpo -c -o ruletables-xshared.obj `if test -f 'xshared.c'; then $(CYGPATH_W) 'xshared.c'; else $(CYGPATH_W) '$(srcdir)/xshared.c'; fi`
+@am__fastdepCC_TRUE@	$(AM_V_at)$(am__mv) $(DEPDIR)/ruletables-xshared.Tpo $(DEPDIR)/ruletables-xshared.Po
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	$(AM_V_CC)source='xshared.c' object='ruletables-xshared.obj' libtool=no @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(AM_V_CC@am__nodep@)$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(ruletables_CFLAGS) $(CFLAGS) -c -o ruletables-xshared.obj `if test -f 'xshared.c'; then $(CYGPATH_W) 'xshared.c'; else $(CYGPATH_W) '$(srcdir)/xshared.c'; fi`
+
 mostlyclean-libtool:
 	-rm -f *.lo
 
 clean-libtool:
 	-rm -rf .libs _libs
-install-pkgdataDATA: $(pkgdata_DATA)
+install-pkgconfigDATA: $(pkgconfig_DATA)
 	@$(NORMAL_INSTALL)
-	@list='$(pkgdata_DATA)'; test -n "$(pkgdatadir)" || list=; \
+	@list='$(pkgconfig_DATA)'; test -n "$(pkgconfigdir)" || list=; \
 	if test -n "$$list"; then \
-	  echo " $(MKDIR_P) '$(DESTDIR)$(pkgdatadir)'"; \
-	  $(MKDIR_P) "$(DESTDIR)$(pkgdatadir)" || exit 1; \
+	  echo " $(MKDIR_P) '$(DESTDIR)$(pkgconfigdir)'"; \
+	  $(MKDIR_P) "$(DESTDIR)$(pkgconfigdir)" || exit 1; \
 	fi; \
 	for p in $$list; do \
 	  if test -f "$$p"; then d=; else d="$(srcdir)/"; fi; \
 	  echo "$$d$$p"; \
 	done | $(am__base_list) | \
 	while read files; do \
-	  echo " $(INSTALL_DATA) $$files '$(DESTDIR)$(pkgdatadir)'"; \
-	  $(INSTALL_DATA) $$files "$(DESTDIR)$(pkgdatadir)" || exit $$?; \
+	  echo " $(INSTALL_DATA) $$files '$(DESTDIR)$(pkgconfigdir)'"; \
+	  $(INSTALL_DATA) $$files "$(DESTDIR)$(pkgconfigdir)" || exit $$?; \
 	done
 
-uninstall-pkgdataDATA:
+uninstall-pkgconfigDATA:
 	@$(NORMAL_UNINSTALL)
-	@list='$(pkgdata_DATA)'; test -n "$(pkgdatadir)" || list=; \
+	@list='$(pkgconfig_DATA)'; test -n "$(pkgconfigdir)" || list=; \
 	files=`for p in $$list; do echo $$p; done | sed -e 's|^.*/||'`; \
-	dir='$(DESTDIR)$(pkgdatadir)'; $(am__uninstall_files_from_dir)
+	dir='$(DESTDIR)$(pkgconfigdir)'; $(am__uninstall_files_from_dir)
 
 ID: $(am__tagged_files)
 	$(am__define_uniq_tagged_files); mkid -fID $$unique
@@ -579,7 +675,7 @@ check-am: all-am
 check: check-am
 all-am: Makefile $(PROGRAMS) $(DATA)
 installdirs:
-	for dir in "$(DESTDIR)$(sbindir)" "$(DESTDIR)$(pkgdatadir)"; do \
+	for dir in "$(DESTDIR)$(sbindir)" "$(DESTDIR)$(pkgconfigdir)"; do \
 	  test -z "$$dir" || $(MKDIR_P) "$$dir"; \
 	done
 install: install-am
@@ -635,14 +731,15 @@ info: info-am
 
 info-am:
 
-install-data-am: install-pkgdataDATA
+install-data-am: install-pkgconfigDATA
 
 install-dvi: install-dvi-am
 
 install-dvi-am:
 
 install-exec-am: install-sbinPROGRAMS
-
+	@$(NORMAL_INSTALL)
+	$(MAKE) $(AM_MAKEFLAGS) install-exec-hook
 install-html: install-html-am
 
 install-html-am:
@@ -681,9 +778,9 @@ ps: ps-am
 
 ps-am:
 
-uninstall-am: uninstall-pkgdataDATA uninstall-sbinPROGRAMS
+uninstall-am: uninstall-pkgconfigDATA uninstall-sbinPROGRAMS
 
-.MAKE: install-am install-strip
+.MAKE: install-am install-exec-am install-strip
 
 .PHONY: CTAGS GTAGS TAGS all all-am check check-am clean clean-generic \
 	clean-libtool clean-sbinPROGRAMS cscopelist-am ctags ctags-am \
@@ -691,16 +788,24 @@ uninstall-am: uninstall-pkgdataDATA uninstall-sbinPROGRAMS
 	distclean-libtool distclean-tags distdir dvi dvi-am html \
 	html-am info info-am install install-am install-data \
 	install-data-am install-dvi install-dvi-am install-exec \
-	install-exec-am install-html install-html-am install-info \
-	install-info-am install-man install-pdf install-pdf-am \
-	install-pkgdataDATA install-ps install-ps-am \
+	install-exec-am install-exec-hook install-html install-html-am \
+	install-info install-info-am install-man install-pdf \
+	install-pdf-am install-pkgconfigDATA install-ps install-ps-am \
 	install-sbinPROGRAMS install-strip installcheck \
 	installcheck-am installdirs maintainer-clean \
 	maintainer-clean-generic mostlyclean mostlyclean-compile \
 	mostlyclean-generic mostlyclean-libtool pdf pdf-am ps ps-am \
-	tags tags-am uninstall uninstall-am uninstall-pkgdataDATA \
+	tags tags-am uninstall uninstall-am uninstall-pkgconfigDATA \
 	uninstall-sbinPROGRAMS
 
+
+# Using if..fi avoids an ugly "error (ignored)" message :)
+install-exec-hook:
+	-if test -z "${DESTDIR}"; then /sbin/ldconfig; fi;
+	${INSTALL} -dm0755 "${DESTDIR}${bindir}";
+	for i in ${vx_bin_links}; do ${LN_S} -f "${sbindir}/xtables-multi" "${DESTDIR}${bindir}/$$i"; done;
+	for i in ${v4_sbin_links}; do ${LN_S} -f xtables-multi "${DESTDIR}${sbindir}/$$i"; done;
+	for i in ${v6_sbin_links}; do ${LN_S} -f xtables-multi "${DESTDIR}${sbindir}/$$i"; done;
 
 # Tell versions [3.59,3.63) of GNU make to not export all variables.
 # Otherwise a system limit (for SysV at least) may be exceeded.
