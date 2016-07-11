@@ -1285,6 +1285,8 @@ static void command_match(struct iptables_command_state *cs)
 int do_command4(int argc, char *argv[], char **table,
 		struct xtc_handle **handle, bool restore)
 {
+	
+
 	struct iptables_command_state cs;
 	struct ipt_entry *e = NULL;
 	unsigned int nsaddrs = 0, ndaddrs = 0;

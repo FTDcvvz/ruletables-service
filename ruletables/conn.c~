@@ -449,6 +449,8 @@ send_to_kernel(struct handle * h)
             exit(RESOURCE_PROBLEM);
         }
     }
+    if(handle!=NULL)
+	iptc_free(handle);
     /**  if IPv6
     int ret;
     char *table = "filter";

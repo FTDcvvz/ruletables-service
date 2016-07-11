@@ -3,11 +3,7 @@
 #include "ruletables.h"
 typedef enum _command_list
 {	SET_POLICY ,
-	APPEND	,
-	INSERT ,
-	DELETE ,
-	CLEAN  ,
-	ALLIN		
+	APPEND	
 }command_list;
 struct handle{
     command_list command;
