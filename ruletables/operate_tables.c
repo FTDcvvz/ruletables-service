@@ -22,15 +22,15 @@ extern void
 init_ruletables(struct list_head * ruletables)
 {
 	//init filter
-	strcpy(filter_policy_in.property.tablename, "filter");
-	strcpy(filter_policy_in.actionDesc ,"ACCEPT");
-	strcpy(filter_policy_in.actionType , "INPUT");
-	strcpy(filter_policy_out.property.tablename , "filter");
-	strcpy(filter_policy_out.actionDesc , "ACCEPT");
-	strcpy(filter_policy_out.actionType , "OUTPUT");
-	strcpy(filter_policy_for.property.tablename , "filter");
-	strcpy(filter_policy_for.actionDesc ,"ACCEPT");
-	strcpy(filter_policy_for.actionType , "FORWARD");
+	filter_policy_in.property.tablename= filter;
+	filter_policy_in.actionDesc = ACCEPT;
+	filter_policy_in.actionType = INPUT;
+	filter_policy_out.property.tablename =filter;
+	filter_policy_out.actionDesc =ACCEPT;
+	filter_policy_out.actionType =OUTPUT;
+	filter_policy_for.property.tablename =filter;
+	filter_policy_for.actionDesc =ACCEPT;
+	filter_policy_for.actionType =FORWARD;
 	list_add_tail(&filter_policy_in.list, ruletables);
 	list_add_tail(&filter_policy_out.list, ruletables);
 	list_add_tail(&filter_policy_for.list, ruletables);

@@ -12,30 +12,6 @@
 #include "ruletables.h"
 #include <iptables.h>
 
-
-#define GET_MES(handle_type)  \
-            int recvSize = sizeof(struct handle_type); \
-            char * buffer = (char*)malloc(recvSize); \
-        if(!buffer){ \
-          fprintf(stderr, "malloc error : %s\n",strerror(errno));\
-            } \
-            struct handle_type *handle = (struct handle_type *)malloc(recvSize); \
-            int pos=0; \
-            int len=0; \
-            while(pos<recvSize){ \
-                len = recv(connfd,buffer+pos,BUFFER_SIZE,0); \
-                if(len<=0){ \
-                    perror("recv error! \n"); \
-                    break; \
-                } \
-                pos+=len; \
-            } \
-            if(!memcpy(handle,buffer,recvSize)){ \
-          fprintf(stderr, "memcpy error : %s\n",strerror(errno));\
-            } \
-            free(buffer); \
-            buffer = NULL 
-
 #define SERVPORT_C 6666   //server 
 #define CONNPORT_C 3333 //client 
 #define CONTROLLER_ADDR "127.0.0.1" 
@@ -106,7 +82,27 @@ do_com_controller(){
         }
     
     printf("messages coming from controller.\n");
-    GET_MES(handle);
+       int recvSize = sizeof(struct handle); 
+            char * buffer = (char*)malloc(recvSize); 
+        if(!buffer){ 
+          fprintf(stderr, "malloc error : %s\n",strerror(errno));
+            } 
+            struct handle *handle = (struct handle *)malloc(recvSize); 
+            int pos=0; 
+            int len=0; 
+            while(pos<recvSize){ 
+                len = recv(connfd,buffer+pos,BUFFER_SIZE,0); 
+                if(len<=0){ 
+                    perror("recv error! \n"); 
+                    break; 
+                } 
+                pos+=len; 
+            } 
+            if(!memcpy(handle,buffer,recvSize)){ 
+          fprintf(stderr, "memcpy error : %s\n",strerror(errno));
+            } 
+            free(buffer); 
+            buffer = NULL ;
     do_message_from_controller(handle);
     
     free(handle);
@@ -147,7 +143,27 @@ do_com_iptables(){
             printf("accept socket error: %s(errno: %d)",strerror(errno),errno);
             continue;
         }
-        GET_MES(handle);
+           int recvSize = sizeof(struct handle); 
+            char * buffer = (char*)malloc(recvSize); 
+        if(!buffer){ 
+          fprintf(stderr, "malloc error : %s\n",strerror(errno));
+            } 
+            struct handle *handle = (struct handle *)malloc(recvSize); 
+            int pos=0; 
+            int len=0; 
+            while(pos<recvSize){ 
+                len = recv(connfd,buffer+pos,BUFFER_SIZE,0); 
+                if(len<=0){ 
+                    perror("recv error! \n"); 
+                    break; 
+                } 
+                pos+=len; 
+            } 
+            if(!memcpy(handle,buffer,recvSize)){ 
+          fprintf(stderr, "memcpy error : %s\n",strerror(errno));
+            } 
+            free(buffer); 
+            buffer = NULL ;
     do_message_from_iptables(handle);
 
         free(handle);
@@ -162,7 +178,7 @@ do_message_from_controller(struct handle *h)
     struct in_addr addr1,addr2;
     memcpy(&addr1, &(h->table.head.s_addr), 4);
     memcpy(&addr2, &(h->table.head.d_addr), 4);
-    printf("info from controller: %d %s %s %s %s ",h->command,h->table.actionType,h->table.property.tablename,
+    printf("info from controller: %d %u %u %u %s ",h->command,h->table.actionType,h->table.property.tablename,
        h->table.actionDesc,inet_ntoa(addr1));
     printf("%s\n  next step is sending to kernel and store it \n",inet_ntoa(addr2));
     if(!send_to_kernel(h))//如果没有成功写入内核
@@ -176,7 +192,7 @@ do_message_from_controller(struct handle *h)
 static void
 do_message_from_iptables(struct handle *h)
 {
-     printf("info from iptables: %d %s %s %s \n  next step is sending to controller \n",h->command,h->table.actionType,h->table.property.tablename,
+     printf("info from iptables: %d %u %u %u \n  next step is sending to controller \n",h->command,h->table.actionType,h->table.property.tablename,
         h->table.actionDesc);
      do_store(h);
      send_to_controller(h);
@@ -211,7 +227,20 @@ to_argv(struct handle * h,char * argv[])
     // }
     argv[argc++] = "iptables";
     argv[argc++] = "-t";
-    argv[argc++] = h->table.property.tablename;
+    switch(h->table.property.tablename)
+    {
+	case filter:
+		argv[argc++] = "filter";
+		break;
+	case nat:
+		argv[argc++] = "nat";
+		break;
+	case mangle:
+		argv[argc++] = "mangle";
+		break;
+	default:
+		break;
+    }
 
     switch(h->command){
      	case SET_POLICY:
@@ -223,15 +252,64 @@ to_argv(struct handle * h,char * argv[])
 	default:
 		break;
      }
-    argv[argc++] = h->table.actionType;
+    switch(h->table.actionType){
+    	case PREROUTING:
+		argv[argc++] = "PREROUTING";
+		break;
+	case INPUT:
+		argv[argc++] = "INPUT";
+		break;
+    	case OUTPUT:
+		argv[argc++] = "OUTPUT";
+		break;
+    	case FORWARD:
+		argv[argc++] = "FORWARD";
+		break;
+    	case POSTROUTING:
+		argv[argc++] = "POSTROUTING";
+		break;
+	default:
+		break;
+    }
+    
 
     switch(h->command){
      	case SET_POLICY:
-		argv[argc++] = h->table.actionDesc;
+		switch(h->table.actionDesc){
+			case ACCEPT:
+				argv[argc++] ="ACCEPT";
+				break;
+    			case DROP:
+				argv[argc++] ="DROP";
+				break;
+    			case QUEUE:
+				argv[argc++] ="QUEUE";
+				break;
+    			case RETURN:
+				argv[argc++] ="RETURN";
+				break;
+			default :
+				break;
+		}
 		return argc;  //如果是set policy,到这里就结束了,return
 	case APPEND:
 		argv[argc++] = "-j";
-		argv[argc++] = h->table.actionDesc;
+		switch(h->table.actionDesc){
+			case ACCEPT:
+				argv[argc++] ="ACCEPT";
+				break;
+    			case DROP:
+				argv[argc++] ="DROP";
+				break;
+    			case QUEUE:
+				argv[argc++] ="QUEUE";
+				break;
+    			case RETURN:
+				argv[argc++] ="RETURN";
+				break;
+			default :
+				break;
+		}
 		break;
 	default:
 		break;
@@ -254,35 +332,59 @@ if(addr2.s_addr != 0){
     argv[argc++] = tmp1;
 }
 
-//   TCP OR UDP???
-     unsigned int port0,port1;
-     static char sp[10],dp[10];
-    if((port0 = h->table.head.spts[0])!=0 || (port1 = h->table.head.spts[1])!=0)
-    {
-	argv[argc++] = "--sport";
-	if(port0!=0 && port1!=0)
-	    sprintf(sp, "%u:%u", port0,port1);
-	else if(port0!=0)
-            sprintf(sp, "%u", port0);
-	else 
-            sprintf(sp, "%u", port1);
-        argv[argc++] = sp;
-    }
+//   protocal
+     switch(h->table.head.proto){
+	case TCP:
+		argv[argc++] = "-p";
+		argv[argc++] = "TCP";
+		break;
+    	case UDP:
+		argv[argc++] = "-p";
+		argv[argc++] = "UDP";
+		break;
+    	case ARP:
+		argv[argc++] = "-p";
+		argv[argc++] = "ARP";
+		break;
+    	case ICMP:
+		argv[argc++] = "-p";
+		argv[argc++] = "ICMP";
+		break;
+	default :
+		break;
+     }
+     if(strcmp(argv[argc-2],"-p") == 0)
+     {
+	     unsigned int port0,port1;
+	     static char sp[10],dp[10];
+	    if((port0 = h->table.head.spts[0])!=0 || (port1 = h->table.head.spts[1])!=0)
+	    {
+		argv[argc++] = "--sport";
+		if(port0!=0 && port1!=0)
+		    sprintf(sp, "%u:%u", port0,port1);
+		else if(port0!=0)
+		    sprintf(sp, "%u", port0);
+		else 
+		    sprintf(sp, "%u", port1);
+		argv[argc++] = sp;
+	    }
 
-    if((port0 = h->table.head.dpts[0])!=0 || (port1 = h->table.head.dpts[1])!=0)
-    {
-	argv[argc++] = "--dport";
-	if(port0!=0 && port1!=0)
-	    sprintf(dp, "%u:%u", port0,port1);
-	else if(port0!=0)
-            sprintf(dp, "%u", port0);
-	else 
-            sprintf(dp, "%u", port1);
-        argv[argc++] = dp;
-    }
+	    if((port0 = h->table.head.dpts[0])!=0 || (port1 = h->table.head.dpts[1])!=0)
+	    {
+		argv[argc++] = "--dport";
+		if(port0!=0 && port1!=0)
+		    sprintf(dp, "%u:%u", port0,port1);
+		else if(port0!=0)
+		    sprintf(dp, "%u", port0);
+		else 
+		    sprintf(dp, "%u", port1);
+		argv[argc++] = dp;
+	    }
+     }
+     
 int i;
 for(i = 0;i<argc;i++)
-	printf("%s \n",argv[i]);
+	printf("%s ",argv[i]);
    return argc;
 }
 

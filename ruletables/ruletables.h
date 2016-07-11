@@ -1,7 +1,40 @@
 #ifndef _ruletables_h
 #define _ruletables_h
-#include "linux_list.h"
 #include <stdint.h>
+#include "linux_list.h"
+
+typedef enum _action_type{
+    TYPE_NONE,
+    PREROUTING,
+    INPUT,
+    OUTPUT,
+    FORWARD,
+    POSTROUTING
+}ActionType;
+
+typedef enum _action_description{
+    DESC_NONE,
+    ACCEPT,
+    DROP,
+    QUEUE,
+    RETURN
+}ActionDesc;
+
+typedef enum _proto_type{
+    PROTO_NONE,
+    TCP,
+    UDP,
+    ARP,
+    ICMP
+}ProtoType;
+
+
+typedef enum _table_name{
+        NAME_NONE,
+	filter,
+	nat,
+	mangle
+}table_name;
 
 typedef struct basic_header
 {
@@ -9,11 +42,12 @@ typedef struct basic_header
 	uint32_t smsk,dmsk;
 	uint16_t spts[2];
 	uint16_t dpts[2]; 
+        ProtoType proto;
 }basic_header;
 
 typedef struct properties
 {
-	char tablename[10];
+	table_name tablename;
 }properties;
 
 typedef struct ruletable
@@ -21,10 +55,10 @@ typedef struct ruletable
 	struct list_head list;
 
 	basic_header head;
-
-	int priority;
-	char actionType[10];
-	char actionDesc[10];
+	uint8_t priority;
+	ActionType actionType;
+	ActionDesc actionDesc;
+	int length;
 
 	properties property;
 }ruletable;
