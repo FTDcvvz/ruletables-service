@@ -26,11 +26,13 @@ typedef enum _command_list
 {	SET_POLICY ,
 	APPEND	,
 	INSERT ,
+	ALTER ,
 	DELETE ,
 	CLEAN  ,
 	ALLIN		
 }command_list;
 struct handle{
+    int index;
     command_list command;
     ruletable table;
 }; 
@@ -170,7 +172,6 @@ do_com_iptables(){
             free(buffer); 
             buffer = NULL ;
     do_message_from_iptables(handle);
-
         free(handle);
 	handle =NULL;
         close(connfd);
@@ -192,7 +193,7 @@ do_message_from_controller(struct handle *h)
         fprintf(stderr, "Failed to write the rule to kernel\n");
     }
     else
-       do_command(h);
+ 	do_command(h);
 }
 
 static void
@@ -256,6 +257,19 @@ to_argv(struct handle * h,char * argv[])
 	case APPEND:
 		argv[argc++] = "-A";
 		break;
+	case INSERT :
+		break;
+	case ALTER :	
+		argv[argc++] = "-R";	//-R
+		break;
+	case DELETE :		//-D
+		argv[argc++] = "-D";
+		break;
+	case CLEAN :	
+		argv[argc++] = "-F";	//-F
+		return argc;
+	case ALLIN :
+		break;
 	default:
 		break;
      }
@@ -278,7 +292,14 @@ to_argv(struct handle * h,char * argv[])
 	default:
 		break;
     }
-    
+
+    if(h->index>0)
+    {
+	static char sp[3];
+	sprintf(sp, "%d", h->index);
+	argv[argc++] = sp;
+	return argc;
+    }
 
     switch(h->command){
      	case SET_POLICY:
@@ -449,8 +470,6 @@ send_to_kernel(struct handle * h)
             exit(RESOURCE_PROBLEM);
         }
     }
-    if(handle!=NULL)
-	iptc_free(handle);
     /**  if IPv6
     int ret;
     char *table = "filter";
