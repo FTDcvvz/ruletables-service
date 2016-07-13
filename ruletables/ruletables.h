@@ -52,13 +52,13 @@ typedef struct properties
 
 typedef struct ruletable
 {
-	struct list_head list;
-
 	basic_header head;
 	uint8_t priority;
 	ActionType actionType;
 	ActionDesc actionDesc;
 
 	properties property;
+
+	struct list_head list;//链表结构体一定要放在结构体最下面
 }ruletable;
 #endif

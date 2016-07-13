@@ -58,7 +58,6 @@ typedef struct ruletable
 	uint8_t priority;
 	ActionType actionType;
 	ActionDesc actionDesc;
-	int length;
 
 	properties property;
 }ruletable;

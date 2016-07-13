@@ -73,9 +73,7 @@ static inline void __list_add(struct list_head *new,
 			      struct list_head *prev,
 			      struct list_head *next)
 {
-	printf("456\n");
 	next->prev = new;
-printf("456\n");
 	new->next = next;
 	new->prev = prev;
 	prev->next = new;

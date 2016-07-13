@@ -3,6 +3,7 @@
 #include <arpa/inet.h>
 #include "ruletables.h"
 #define LIST_HEAD_NUM 12
+#define MAX_PRIORITY 100
 
 LIST_HEAD(filter_in_ruletables);
 LIST_HEAD(filter_out_ruletables);
@@ -45,7 +46,6 @@ static struct ruletables_info{
 typedef enum _command_list
 {	SET_POLICY ,
 	APPEND	,
-	INSERT ,
 	ALTER ,
 	DELETE ,
 	CLEAN  ,
@@ -58,9 +58,9 @@ struct handle{
     ruletable table;
 }; 
 
-extern void init_ruletables();
-extern void do_command(struct handle * h);
-extern void free_all();
+extern int init_ruletables();
+extern int do_command(struct handle * h);
+extern int free_all();
 
 static void 
 print_info()
@@ -79,7 +79,7 @@ print_info()
 		}
 }
 
-extern void 
+extern int 
 init_ruletables()
 {
 	int i;
@@ -90,7 +90,7 @@ init_ruletables()
 		filter_policy->actionType = info[i].chainname;
 		filter_policy->actionDesc = ACCEPT;
 		filter_policy->property.tablename = info[i].tablename;
-		filter_policy->priority = 0;
+		filter_policy->priority = MAX_PRIORITY;
 		filter_policy->head.s_addr = 0;
 		filter_policy->head.d_addr = 0;
 		filter_policy->head.smsk = 0;
@@ -104,120 +104,282 @@ init_ruletables()
 		list_add(&(filter_policy->list),info[i].head);
 		info[i].length = 1;
 	}
-	
-	print_info();
+//	print_info();
+	return 1;
 }
 
-static void do_set_policy(table_name tablename ,ActionType actiontype,ActionDesc actiondesc)
+static int do_set_policy(table_name tablename ,ActionType actiontype,ActionDesc actiondesc)
 {
 	int i;
 	for(i=0;i<LIST_HEAD_NUM ;i++)
 		if(info[i].tablename == tablename && info[i].chainname == actiontype)
 			break;
+	if(i == LIST_HEAD_NUM){
+		alert_tocontroller("表名或链名 cant find\n");
+		return 0;
+	}
+	if(actiondesc == DESC_NONE){
+		alert_tocontroller("unknown policy.");
+		return 0;
+	}
+		
 	ruletable * rt;
 	rt = list_entry(info[i].head->prev,ruletable,list);
 	rt->actionDesc = actiondesc;
+	rt->priority = MAX_PRIORITY;
 
-	print_info();
+//	print_info();
+	return 1;
 } 
 
+static int do_insert(struct handle * h)
+{	
+	int i;
+	for(i=0;i<LIST_HEAD_NUM ;i++)
+		if(info[i].tablename == h->table.property.tablename && info[i].chainname == h->table.actionType)
+			break;
+	if(i == LIST_HEAD_NUM){
+		alert_tocontroller("表名或链名 cant find\n");
+		return 0;
+	}
+	
+	ruletable * p;
+	int j = 0;
+	list_for_each_entry(p,info[i].head,list)
+	{	
+		j++;
+		if(h->table.priority > p->priority)
+			break;
+	}	
+	h->index = j;
+	if(&p->list == info[i].head)	//priority is smallest
+	{	
+		ruletable* t = (ruletable *)malloc(sizeof(ruletable));
+		memcpy(t , &(h->table),sizeof(ruletable));
+		list_add_tail(&(t->list),info[i].head->prev);
+		info[i].length ++;
+//		print_info();
+		return 1;
+	}
+	else{
+		//h->table insert before p
+		ruletable* t = (ruletable *)malloc(sizeof(ruletable));
+		memcpy(t , &(h->table),sizeof(ruletable));
+		list_add_tail(&t->list,&p->list);
+		info[i].length ++;
+//		print_info();
+		return 1;
+	}
+}
 
-static void 
+
+static int 
 do_append(struct handle * h)
 {
 	int i;
 	for(i=0;i<LIST_HEAD_NUM ;i++)
 		if(info[i].tablename == h->table.property.tablename && info[i].chainname == h->table.actionType)
 			break;
-	ruletable* t = (ruletable *)malloc(sizeof(ruletable));
-	memcpy(t , &(h->table),sizeof(ruletable));
-	list_add_tail(&(t->list),info[i].head->prev);
-	info[i].length ++;
-	print_info();
-}
-
-extern void free_all()
-{
-	int i;
-	for(i=0;i<LIST_HEAD_NUM ;i++)
-	{	
-		struct list_head *pos;
-		struct list_head *q;
-		for (pos = info[i].head->next; pos != info[i].head;pos = q)
-		{
-			ruletable * rt;
-			rt = list_entry(pos,ruletable,list);
-			q = pos->next;
-			free(rt);
-			info[i].length--;
-		}
-		info[i].head->next = info[i].head;
-		info[i].head->prev = info[i].head;
+	if(i == LIST_HEAD_NUM){
+		alert_tocontroller("表名或链名 cant find\n");
+		return 0;
 	}
-}
-
-static void do_alter(struct handle * h)
-{
 	
+	if(h->table.priority == 0)
+	{
+		if(h->index != 0)
+		{
+			alert_tocontroller("index must be 0!\n");
+			return 0;
+		}
+		ruletable* t = (ruletable *)malloc(sizeof(ruletable));
+		memcpy(t , &(h->table),sizeof(ruletable));
+		list_add_tail(&(t->list),info[i].head->prev);
+		info[i].length ++;
+//		print_info();
+		return 1;
+	}
+	else 
+		return do_insert(h);
 }
 
-static void do_insert(struct handle * h)
+extern int free_all(struct handle * h)
 {
-	
+	int i,flag = 0;
+	ruletable * p;
+	for(i=0;i<LIST_HEAD_NUM ;i++)
+		if(info[i].tablename == h->table.property.tablename)
+		{	
+			flag = 1;
+			list_for_each_entry(p,info[i].head,list)
+			{
+				if(info[i].length -1 == 0)
+					break;
+
+				struct list_head *pos;
+				struct list_head *q;
+				for (pos = info[i].head->next; pos != info[i].head && info[i].length -1 != 0;pos = q)
+				{
+					ruletable * rt;
+					rt = list_entry(pos,ruletable,list);
+					q = pos->next;
+					list_del(pos);
+					free(rt);
+					info[i].length--;
+				}
+			}
+		}
+	if(flag == 0){
+		alert_tocontroller("表名 cant find\n");
+		return 0;
+	}
+	return 1;	
 }
 
-static void do_delete(struct handle * h)
+static int do_alter(struct handle * h)
 {
 	int i;
 	for(i=0;i<LIST_HEAD_NUM ;i++)
 		if(info[i].tablename == h->table.property.tablename && info[i].chainname == h->table.actionType)
 			break;
+	if(i == LIST_HEAD_NUM){
+		alert_tocontroller("表名或链名 cant find\n");
+		return 0;
+	}
 
-	if(info[i].length-1 <= h->index)	
-		fprintf(stderr,"Index of deletion too big.\n");
+	if(info[i].length-1 < h->index)
+	{	
+		alert_tocontroller("Index of deletion too big.\n");
+		return 0;
+	}
+
+	int j;
+	struct list_head * p = info[i].head;
+	for(j=0;j<h->index;j++,p = p->next);
+	ruletable * rt = list_entry(p,ruletable,list);
+	if(rt){
+			//priority cannot be changed!
+			rt->head.s_addr = h->table.head.s_addr;
+			rt->head.d_addr = h->table.head.d_addr;
+			rt->head.smsk = h->table.head.smsk;
+			rt->head.dmsk = h->table.head.dmsk;
+			rt->head.spts[0] = h->table.head.spts[0];
+			rt->head.spts[1] = h->table.head.spts[1];
+			rt->head.dpts[0] = h->table.head.dpts[0];
+			rt->head.dpts[1] = h->table.head.dpts[1];
+			rt->head.proto = h->table.head.proto;
+			rt->actionDesc = h->table.actionDesc;
+	}
+	else 
+	{
+		alert_tocontroller("list_entry error,cant find ruletables.\n");	
+		return 0;
+	}		
+//	print_info();
+	return 1;
+}
+
+
+static int do_delete(struct handle * h)
+{
+	int i,j;
+	ruletable * p;
+	int size = sizeof(ruletable);
+	for(i=0;i<LIST_HEAD_NUM ;i++)
+		if(info[i].tablename == h->table.property.tablename && info[i].chainname == h->table.actionType)
+			break;
+	if(i == LIST_HEAD_NUM){
+		alert_tocontroller("表名或链名 cant find\n");
+		return 0;
+	}
+	if(h->index ==0)  	
+	{
+		j = 0;
+		list_for_each_entry(p,info[i].head,list)
+		{	
+			if(j<info[i].length-1 && memcmp(&(h->table) , p , size-sizeof(struct list_head) ) == 0 )
+			{
+				list_del(&(p->list));
+				free(p);
+				info[i].length --;
+				break;
+			}
+			j++;
+		}
+		if(j == info[i].length)
+		{
+			alert_tocontroller("找了半天没找到你想要删除的东西.\n");
+			return 0;
+		}
+	}
+
+	else if(info[i].length-1 < h->index)
+	{	
+		alert_tocontroller("Index of deletion too big.\n");
+		return 0;
+	}
 
 	else 
 	{
 		int j;
 		struct list_head * p = info[i].head;
-		for(j=0;j<index;j++,p = p->next);
-		ruletable * rt;
-		rt = list_entry(p,ruletable,list);
+		for(j=0;j<h->index;j++,p = p->next);
+		ruletable * rt = list_entry(p,ruletable,list);
 		list_del(p);
-		free(rt);
+		if(rt)
+			free(rt); 	
+		else 
+		{
+			alert_tocontroller("list_entry error,cant find ruletables.\n");	
+			return 0;
+		}
 		info[i].length--;
 	}
-	print_info();
-	
+//	print_info();
+	return 1;
 }
 
-extern void do_command(struct handle * h)
+static int all_in (struct handle * h)
 {
-	printf("start to do command \n");
+	int i;
+	ruletable * p;
+	sleep(1);
+	for(i=0;i<LIST_HEAD_NUM ;i++)
+	{
+		list_for_each_entry(p,info[i].head,list)
+		{
+			memcpy(&h->table,p,sizeof(ruletable));
+			send_to_controller(h);
+		}
+	}
+	return 0;
+}
+
+extern int do_command(struct handle * h)
+{
+	int ret = 0;
   	switch(h->command){
      	case SET_POLICY:
-		do_set_policy(h->table.property.tablename,h->table.actionType,h->table.actionDesc);
-		printf("set policy succeed.\n");
+		ret = do_set_policy(h->table.property.tablename,h->table.actionType,h->table.actionDesc);
 		break;
 	case APPEND :
-		do_append(h);
-		break;
-	case INSERT :	
-		do_insert(h);
+		ret = do_append(h);	//-A or  -I	
 		break;
 	case ALTER :	
-		do_alter(h);	//-R
+		ret = do_alter(h);	//-R
 		break;
 	case DELETE :
-		do_delete(h);    //-D
+		ret = do_delete(h);    //-D
 		break;
 	case CLEAN :	
-		free_all();	//-F
-		init_ruletables();
+		ret = free_all(h);	//-F
 		break;
 	case ALLIN :
+		ret = all_in(h);	//send all data to controller
 		break;
 	default:
+		alert_tocontroller("输入的命令错误");
 		break;
      }
+	return ret;
 }

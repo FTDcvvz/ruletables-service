@@ -12,6 +12,7 @@
 #include "ruletables.h"
 #include <iptables.h>
 
+#define MESSAGEPORT 5555
 #define SERVPORT_C 6666   //server 
 #define CONNPORT_C 3333 //client 
 #define CONTROLLER_ADDR "127.0.0.1" 
@@ -25,7 +26,6 @@
 typedef enum _command_list
 {	SET_POLICY ,
 	APPEND	,
-	INSERT ,
 	ALTER ,
 	DELETE ,
 	CLEAN  ,
@@ -43,7 +43,7 @@ static void do_com_controller();
 static void do_message_from_controller(struct handle *handle);
 static void do_message_from_iptables(struct handle *handle);
 static int send_to_kernel(struct handle * h);
-static void send_to_controller(struct handle * h);
+extern void send_to_controller(struct handle * h);
 static int to_argv(struct handle * h,char * argv[]);
 
 
@@ -87,8 +87,6 @@ do_com_controller(){
             printf("accept socket error: %s(errno: %d)",strerror(errno),errno);
             continue;
         }
-    
-    printf("messages coming from controller.\n");
        int recvSize = sizeof(struct handle); 
             char * buffer = (char*)malloc(recvSize); 
         if(!buffer){ 
@@ -185,25 +183,21 @@ do_message_from_controller(struct handle *h)
     struct in_addr addr1,addr2;
     memcpy(&addr1, &(h->table.head.s_addr), 4);
     memcpy(&addr2, &(h->table.head.d_addr), 4);
-    printf("info from controller: %d %u %u %u %s ",h->command,h->table.actionType,h->table.property.tablename,
-       h->table.actionDesc,inet_ntoa(addr1));
-    printf("%s\nnext step is sending to kernel and doing the command \n",inet_ntoa(addr2));
-    if(!send_to_kernel(h))//如果没有成功写入内核
-    {
-        fprintf(stderr, "Failed to write the rule to kernel\n");
-    }
-    else
- 	do_command(h);
+   // printf("info from controller: %d %u %u %u %s ",h->command,h->table.actionType,h->table.property.tablename,h->table.actionDesc,inet_ntoa(addr1));
+   // printf("%s\nnext step is sending to kernel and doing the command \n",inet_ntoa(addr2));
+    if(do_command(h))
+ 	send_to_kernel(h);
 }
 
 static void
 do_message_from_iptables(struct handle *h)
 {
-     printf("info from iptables: %d %u %u %u \n  next step is sending to controller \n",h->command,h->table.actionType,h->table.property.tablename,
+     printf("info from iptables: %u %u %u %u \n",h->command,h->table.actionType,h->table.property.tablename,
         h->table.actionDesc);
-     send_to_controller(h);
-     printf("Sending to controller Succeed.now it's time to do the command\n");
-      do_command(h);
+     printf("do command...\n");
+      if(do_command(h))
+          send_to_controller(h);
+     printf("send to controller...\n");
 }
 
 static int 
@@ -254,15 +248,16 @@ to_argv(struct handle * h,char * argv[])
      	case SET_POLICY:
 		argv[argc++] = "-P";
 		break;
-	case APPEND:
-		argv[argc++] = "-A";
-		break;
-	case INSERT :
+	case APPEND:		//如果优先级最低则直接append，如果优先级不是最低，那么就要插入iptables中，就要用-I	
+		if(h->table.priority == 0)		
+			argv[argc++] = "-A";
+		else if(h->table.priority >0)
+			argv[argc++] = "-I";
 		break;
 	case ALTER :	
 		argv[argc++] = "-R";	//-R
 		break;
-	case DELETE :		//-D
+	case DELETE :			//-D
 		argv[argc++] = "-D";
 		break;
 	case CLEAN :	
@@ -295,10 +290,11 @@ to_argv(struct handle * h,char * argv[])
 
     if(h->index>0)
     {
-	static char sp[3];
+	static char sp[5];
 	sprintf(sp, "%d", h->index);
 	argv[argc++] = sp;
-	return argc;
+	if(h->command == DELETE)
+		return argc;
     }
 
     switch(h->command){
@@ -339,24 +335,119 @@ to_argv(struct handle * h,char * argv[])
 				break;
 		}
 		break;
+	case DELETE:
+		argv[argc++] = "-j";
+		switch(h->table.actionDesc){
+			case ACCEPT:
+				argv[argc++] ="ACCEPT";
+				break;
+    			case DROP:
+				argv[argc++] ="DROP";
+				break;
+    			case QUEUE:
+				argv[argc++] ="QUEUE";
+				break;
+    			case RETURN:
+				argv[argc++] ="RETURN";
+				break;
+			default :
+				break;
+		}
+		break;
+	case ALTER:
+		switch(h->table.actionDesc){
+			case ACCEPT:
+				argv[argc++] = "-j";
+				argv[argc++] ="ACCEPT";
+				break;
+    			case DROP:
+				argv[argc++] = "-j";
+				argv[argc++] ="DROP";
+				break;
+    			case QUEUE:
+				argv[argc++] = "-j";
+				argv[argc++] ="QUEUE";
+				break;
+    			case RETURN:
+				argv[argc++] = "-j";
+				argv[argc++] ="RETURN";
+				break;
+			default :
+				break;
+		}
+		break;
 	default:
 		break;
      }
     
-//ip地址，暂时没有考虑掩码
+//ip and mask 
     struct in_addr addr1,addr2;
-//static char
-    static char tmp0[15],tmp1[15];
+    struct in_addr msk1,msk2;
+    static char tmp0[20],tmp1[20];
     memcpy(&addr1, &(h->table.head.s_addr), 4);
     memcpy(&addr2, &(h->table.head.d_addr), 4);
+    memcpy(&msk1, &(h->table.head.smsk), 4);
+    memcpy(&msk2, &(h->table.head.dmsk), 4);
 if(addr1.s_addr != 0){
     argv[argc++] = "-s";
+    if(!inet_ntoa(addr1)){
+	fprintf(stderr,"source ip地址无效，请检查\n");
+	return 0;
+    }
     strcpy(tmp0 , inet_ntoa(addr1));
+    int n = 0;
+    if(msk1.s_addr != 0)
+    {
+	int k = 0;
+   	int bits = sizeof(u_int32_t) * 8;
+    	for(k = bits - 1; k >= 0; k--) {
+        if (msk1.s_addr & (0x01 << k)) 
+            n++;
+    	}
+    }
+    int len = strlen(tmp0);
+    if(n!=0)
+    {
+	tmp0[len++] = '/';
+    	if(n>=10)
+	{
+		tmp0[len++] = '0'+n/10;
+		tmp0[len++] = '0'+n%10;
+	}
+	else tmp0[len++] = '0'+n;
+	tmp0[len] = '\0';
+    }
     argv[argc++] = tmp0;
 }
 if(addr2.s_addr != 0){
     argv[argc++] = "-d";
+    if(!inet_ntoa(addr2)){
+	fprintf(stderr,"dest ip地址无效，请检查\n");
+	return 0;
+    }
     strcpy(tmp1 , inet_ntoa(addr2));
+    int n = 0;
+    if(msk2.s_addr != 0)
+    {
+	int k = 0;
+   	int bits = sizeof(u_int32_t) * 8;
+    	for(k = bits - 1; k >= 0; k--) {
+        if (msk2.s_addr & (0x01 << k)) 
+            n++;
+    	}
+    }
+    int len = strlen(tmp1);
+    if(n!=0)
+    {
+	tmp1[len++] = '/';
+    	if(n>=10)
+	{
+		tmp1[len++] = '0'+n/10;
+		tmp1[len++] = '0'+n%10;
+	}
+	else tmp1[len++] = '0'+n;
+	tmp1[len] = '\0';
+    }
     argv[argc++] = tmp1;
 }
 
@@ -424,10 +515,9 @@ send_to_kernel(struct handle * h)
 {
     int argc;
     char * argv[MAX_ARG_LENGTH] = {NULL};
-    argc = to_argv(h,argv);
-//	int i;
-//for(i=0;i<argc;i++)
-//	printf("%s ",argv[i]);
+    if(!(argc = to_argv(h,argv)))
+	return 0;
+
     //here are the code from iptables-standalone.c
     //如果想要实现IPv6,将ip6tables-standalone.c中相应代码段copy至此,然后再用if else区分开4和6即可
      
@@ -509,7 +599,7 @@ send_to_kernel(struct handle * h)
     return 1;
 }
 
-static void send_to_controller(struct handle * h)
+extern void send_to_controller(struct handle * h)
 {
     int    sockfd;
     struct sockaddr_in    servaddr;
@@ -551,6 +641,46 @@ static void send_to_controller(struct handle * h)
     close(sockfd);
     free(buffer);
     buffer = NULL;
+}
+
+extern void alert_to_controller(const char * info)
+{
+	sleep(1);
+	int    sockfd;
+    struct sockaddr_in    servaddr;
+    
+    if( (sockfd = socket(AF_INET, SOCK_STREAM, 0)) < 0){
+        printf("create socket error: %s(errno: %d)\n", strerror(errno),errno);
+        exit(0);
+    }
+    memset(&servaddr, 0, sizeof(servaddr));
+
+    servaddr.sin_family = AF_INET;
+    servaddr.sin_port = htons(MESSAGEPORT);
+    if( inet_pton(AF_INET, CONTROLLER_ADDR, &servaddr.sin_addr) <= 0){
+    printf("inet_pton error\n");
+    exit(0);
+    }
+
+    if( connect(sockfd, (struct sockaddr*)&servaddr, sizeof(servaddr)) < 0){
+    printf("connect error: %s(errno: %d)\n",strerror(errno),errno);
+    exit(0);
+    }
+
+    int needSend=strlen(info)+1;
+    char *buffer = info;
+    int pos=0;
+    int len;
+    while(pos < needSend){
+            len = send(sockfd, buffer+pos, BUFFER_SIZE, 0);
+            if (len < 0)
+            {
+                printf("Send Data Failed!\n");
+                break;
+            }
+            pos+=len;
+    }
+    close(sockfd);
 }
 
 
