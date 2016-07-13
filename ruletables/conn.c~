@@ -53,7 +53,7 @@ ipt_server()
     pthread_t thread_id;
     if(pthread_create(&thread_id,NULL,(void *)(&do_com_controller),NULL) == -1)
     {
-        fprintf(stderr,"pthread_create error!\n");
+        alert_to_controller("pthread_create error!\n");
         exit(0);
     }
     do_com_iptables();
@@ -90,7 +90,7 @@ do_com_controller(){
        int recvSize = sizeof(struct handle); 
             char * buffer = (char*)malloc(recvSize); 
         if(!buffer){ 
-          fprintf(stderr, "malloc error : %s\n",strerror(errno));
+          alert_to_controller( "malloc error \n");
             } 
             struct handle *handle = (struct handle *)malloc(recvSize); 
             int pos=0; 
@@ -104,7 +104,7 @@ do_com_controller(){
                 pos+=len; 
             } 
             if(!memcpy(handle,buffer,recvSize)){ 
-          fprintf(stderr, "memcpy error : %s\n",strerror(errno));
+          alert_to_controller( "memcpy error : \n");
             } 
             free(buffer); 
             buffer = NULL ;
@@ -151,7 +151,7 @@ do_com_iptables(){
            int recvSize = sizeof(struct handle); 
             char * buffer = (char*)malloc(recvSize); 
         if(!buffer){ 
-          fprintf(stderr, "malloc error : %s\n",strerror(errno));
+          alert_to_controller( "malloc error \n");
             } 
             struct handle *handle = (struct handle *)malloc(recvSize); 
             int pos=0; 
@@ -165,7 +165,7 @@ do_com_iptables(){
                 pos+=len; 
             } 
             if(!memcpy(handle,buffer,recvSize)){ 
-          fprintf(stderr, "memcpy error : %s\n",strerror(errno));
+          alert_to_controller( "memcpy error \n");
             } 
             free(buffer); 
             buffer = NULL ;
@@ -183,9 +183,18 @@ do_message_from_controller(struct handle *h)
     struct in_addr addr1,addr2;
     memcpy(&addr1, &(h->table.head.s_addr), 4);
     memcpy(&addr2, &(h->table.head.d_addr), 4);
-   // printf("info from controller: %d %u %u %u %s ",h->command,h->table.actionType,h->table.property.tablename,h->table.actionDesc,inet_ntoa(addr1));
-   // printf("%s\nnext step is sending to kernel and doing the command \n",inet_ntoa(addr2));
-    if(do_command(h))
+    printf("info from controller: %d %u %u %u %s ",h->command,h->table.actionType,h->table.property.tablename,h->table.actionDesc,inet_ntoa(addr1));
+    printf("%s\nnext step is sending to kernel and doing the command \n",inet_ntoa(addr2));
+
+	//这个矛盾在docommand和sendtokernel中都不好解决,因此放在外面解决掉
+   if(h->table.head.proto != TCP && h->table.head.proto != UDP)
+     {
+	  if( h->table.head.spts[0]!=0 ||  h->table.head.spts[1]!=0 || h->table.head.dpts[0]!=0 || h->table.head.dpts[1]!=0){
+		alert_to_controller("error：既不是TCP协议又不是UDP协议，但是却定义了端口号.\n");
+	  }
+     }
+
+    else if(do_command(h))
  	send_to_kernel(h);
 }
 
@@ -222,7 +231,7 @@ to_argv(struct handle * h,char * argv[])
     // bp = NULL;
     // if(i>=MAX_ARG_LENGTH )
     // {
-    //	fprintf(stderr,"too many args.\n");  
+    //	alert_to_controller("too many args.\n");  
     //	exit(1);
     // }
     argv[argc++] = "iptables";
@@ -391,7 +400,7 @@ to_argv(struct handle * h,char * argv[])
 if(addr1.s_addr != 0){
     argv[argc++] = "-s";
     if(!inet_ntoa(addr1)){
-	fprintf(stderr,"source ip地址无效，请检查\n");
+	alert_to_controller("source ip地址无效，请检查\n");
 	return 0;
     }
     strcpy(tmp0 , inet_ntoa(addr1));
@@ -422,7 +431,7 @@ if(addr1.s_addr != 0){
 if(addr2.s_addr != 0){
     argv[argc++] = "-d";
     if(!inet_ntoa(addr2)){
-	fprintf(stderr,"dest ip地址无效，请检查\n");
+	alert_to_controller("dest ip地址无效，请检查\n");
 	return 0;
     }
     strcpy(tmp1 , inet_ntoa(addr2));
@@ -472,6 +481,15 @@ if(addr2.s_addr != 0){
 	default:
 		break;
      }
+     
+ /*    if(h->table.head.proto != TCP && h->table.head.proto != UDP)
+     {
+	  if( h->table.head.spts[0]!=0 ||  h->table.head.spts[1]!=0 || h->table.head.dpts[0]!=0 || h->table.head.dpts[1]!=0){
+		alert_to_controller("error：既不是TCP协议又不是UDP协议，但是却定义了端口号.\n");
+		return 0;
+	  }
+     }
+*/
 //TCP UDP 
      if(h->table.head.proto == TCP || h->table.head.proto == UDP)
      {
@@ -507,6 +525,7 @@ if(addr2.s_addr != 0){
 		argv[argc++] = dp;
 	    }
      }
+     
      return argc;
 }
 
@@ -528,9 +547,7 @@ send_to_kernel(struct handle * h)
     iptables_globals.program_name = "iptables";
     ret = xtables_init_all(&iptables_globals, NFPROTO_IPV4);
     if (ret < 0) {
-        fprintf(stderr, "%s/%s Failed to initialize xtables\n",
-                iptables_globals.program_name,
-                iptables_globals.program_version);
+        alert_to_controller( " Failed to initialize xtables\n");
                 exit(1);
     }
 
@@ -549,12 +566,10 @@ send_to_kernel(struct handle * h)
 
     if (!ret) {
         if (errno == EINVAL) {
-            fprintf(stderr, "iptables: %s. "
-                    "Run `dmesg' for more information.\n",
+            alert_to_controller( "iptables error ,Run `dmesg' for more information.\n",
                 iptc_strerror(errno));
         } else {
-            fprintf(stderr, "iptables: %s.\n",
-                iptc_strerror(errno));
+            alert_to_controller( "iptables error.\n");
         }
         if (errno == EAGAIN) {
             exit(RESOURCE_PROBLEM);
@@ -645,7 +660,6 @@ extern void send_to_controller(struct handle * h)
 
 extern void alert_to_controller(const char * info)
 {
-	sleep(1);
 	int    sockfd;
     struct sockaddr_in    servaddr;
     

@@ -104,7 +104,7 @@ init_ruletables()
 		list_add(&(filter_policy->list),info[i].head);
 		info[i].length = 1;
 	}
-//	print_info();
+	print_info();
 	return 1;
 }
 
@@ -128,7 +128,7 @@ static int do_set_policy(table_name tablename ,ActionType actiontype,ActionDesc 
 	rt->actionDesc = actiondesc;
 	rt->priority = MAX_PRIORITY;
 
-//	print_info();
+	print_info();
 	return 1;
 } 
 
@@ -158,7 +158,7 @@ static int do_insert(struct handle * h)
 		memcpy(t , &(h->table),sizeof(ruletable));
 		list_add_tail(&(t->list),info[i].head->prev);
 		info[i].length ++;
-//		print_info();
+		print_info();
 		return 1;
 	}
 	else{
@@ -167,7 +167,7 @@ static int do_insert(struct handle * h)
 		memcpy(t , &(h->table),sizeof(ruletable));
 		list_add_tail(&t->list,&p->list);
 		info[i].length ++;
-//		print_info();
+		print_info();
 		return 1;
 	}
 }
@@ -196,7 +196,7 @@ do_append(struct handle * h)
 		memcpy(t , &(h->table),sizeof(ruletable));
 		list_add_tail(&(t->list),info[i].head->prev);
 		info[i].length ++;
-//		print_info();
+		print_info();
 		return 1;
 	}
 	else 
@@ -275,7 +275,7 @@ static int do_alter(struct handle * h)
 		alert_to_controller("list_entry error,cant find ruletables.\n");	
 		return 0;
 	}		
-//	print_info();
+	print_info();
 	return 1;
 }
 
@@ -335,7 +335,7 @@ static int do_delete(struct handle * h)
 		}
 		info[i].length--;
 	}
-//	print_info();
+	print_info();
 	return 1;
 }
 

@@ -104,7 +104,7 @@ init_ruletables()
 		list_add(&(filter_policy->list),info[i].head);
 		info[i].length = 1;
 	}
-//	print_info();
+	print_info();
 	return 1;
 }
 
@@ -115,11 +115,11 @@ static int do_set_policy(table_name tablename ,ActionType actiontype,ActionDesc 
 		if(info[i].tablename == tablename && info[i].chainname == actiontype)
 			break;
 	if(i == LIST_HEAD_NUM){
-		alert_tocontroller("表名或链名 cant find\n");
+		alert_to_controller("表名或链名 cant find\n");
 		return 0;
 	}
 	if(actiondesc == DESC_NONE){
-		alert_tocontroller("unknown policy.");
+		alert_to_controller("unknown policy.");
 		return 0;
 	}
 		
@@ -128,7 +128,7 @@ static int do_set_policy(table_name tablename ,ActionType actiontype,ActionDesc 
 	rt->actionDesc = actiondesc;
 	rt->priority = MAX_PRIORITY;
 
-//	print_info();
+	print_info();
 	return 1;
 } 
 
@@ -139,7 +139,7 @@ static int do_insert(struct handle * h)
 		if(info[i].tablename == h->table.property.tablename && info[i].chainname == h->table.actionType)
 			break;
 	if(i == LIST_HEAD_NUM){
-		alert_tocontroller("表名或链名 cant find\n");
+		alert_to_controller("表名或链名 cant find\n");
 		return 0;
 	}
 	
@@ -158,7 +158,7 @@ static int do_insert(struct handle * h)
 		memcpy(t , &(h->table),sizeof(ruletable));
 		list_add_tail(&(t->list),info[i].head->prev);
 		info[i].length ++;
-//		print_info();
+		print_info();
 		return 1;
 	}
 	else{
@@ -167,7 +167,7 @@ static int do_insert(struct handle * h)
 		memcpy(t , &(h->table),sizeof(ruletable));
 		list_add_tail(&t->list,&p->list);
 		info[i].length ++;
-//		print_info();
+		print_info();
 		return 1;
 	}
 }
@@ -181,7 +181,7 @@ do_append(struct handle * h)
 		if(info[i].tablename == h->table.property.tablename && info[i].chainname == h->table.actionType)
 			break;
 	if(i == LIST_HEAD_NUM){
-		alert_tocontroller("表名或链名 cant find\n");
+		alert_to_controller("表名或链名 cant find\n");
 		return 0;
 	}
 	
@@ -189,14 +189,14 @@ do_append(struct handle * h)
 	{
 		if(h->index != 0)
 		{
-			alert_tocontroller("index must be 0!\n");
+			alert_to_controller("index must be 0!\n");
 			return 0;
 		}
 		ruletable* t = (ruletable *)malloc(sizeof(ruletable));
 		memcpy(t , &(h->table),sizeof(ruletable));
 		list_add_tail(&(t->list),info[i].head->prev);
 		info[i].length ++;
-//		print_info();
+		print_info();
 		return 1;
 	}
 	else 
@@ -230,7 +230,7 @@ extern int free_all(struct handle * h)
 			}
 		}
 	if(flag == 0){
-		alert_tocontroller("表名 cant find\n");
+		alert_to_controller("表名 cant find\n");
 		return 0;
 	}
 	return 1;	
@@ -243,13 +243,13 @@ static int do_alter(struct handle * h)
 		if(info[i].tablename == h->table.property.tablename && info[i].chainname == h->table.actionType)
 			break;
 	if(i == LIST_HEAD_NUM){
-		alert_tocontroller("表名或链名 cant find\n");
+		alert_to_controller("表名或链名 cant find\n");
 		return 0;
 	}
 
 	if(info[i].length-1 < h->index)
 	{	
-		alert_tocontroller("Index of deletion too big.\n");
+		alert_to_controller("Index of deletion too big.\n");
 		return 0;
 	}
 
@@ -272,10 +272,10 @@ static int do_alter(struct handle * h)
 	}
 	else 
 	{
-		alert_tocontroller("list_entry error,cant find ruletables.\n");	
+		alert_to_controller("list_entry error,cant find ruletables.\n");	
 		return 0;
 	}		
-//	print_info();
+	print_info();
 	return 1;
 }
 
@@ -289,7 +289,7 @@ static int do_delete(struct handle * h)
 		if(info[i].tablename == h->table.property.tablename && info[i].chainname == h->table.actionType)
 			break;
 	if(i == LIST_HEAD_NUM){
-		alert_tocontroller("表名或链名 cant find\n");
+		alert_to_controller("表名或链名 cant find\n");
 		return 0;
 	}
 	if(h->index ==0)  	
@@ -308,14 +308,14 @@ static int do_delete(struct handle * h)
 		}
 		if(j == info[i].length)
 		{
-			alert_tocontroller("找了半天没找到你想要删除的东西.\n");
+			alert_to_controller("找了半天没找到你想要删除的东西.\n");
 			return 0;
 		}
 	}
 
 	else if(info[i].length-1 < h->index)
 	{	
-		alert_tocontroller("Index of deletion too big.\n");
+		alert_to_controller("Index of deletion too big.\n");
 		return 0;
 	}
 
@@ -330,7 +330,7 @@ static int do_delete(struct handle * h)
 			free(rt); 	
 		else 
 		{
-			alert_tocontroller("list_entry error,cant find ruletables.\n");	
+			alert_to_controller("list_entry error,cant find ruletables.\n");	
 			return 0;
 		}
 		info[i].length--;
@@ -378,7 +378,7 @@ extern int do_command(struct handle * h)
 		ret = all_in(h);	//send all data to controller
 		break;
 	default:
-		alert_tocontroller("输入的命令错误");
+		alert_to_controller("输入的命令错误");
 		break;
      }
 	return ret;
